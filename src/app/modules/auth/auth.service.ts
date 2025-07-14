@@ -2,9 +2,9 @@ import bcryptjs from "bcryptjs";
 import httpStatus from "http-status-codes";
 import { envVars } from "../../config/env";
 import AppError from "../../errorHelpers/AppError";
-import { generateToken } from "../../utils/jwt";
 import { IUser } from "../user/user.interface";
 import { User } from "../user/user.model";
+import { generateToken } from "../../utils/jwt";
 
 
 const credentialsLogin = async (payload: Partial<IUser>) => {
@@ -33,8 +33,6 @@ const credentialsLogin = async (payload: Partial<IUser>) => {
     }
 
 }
-
-//user - login - token (email, role, _id) - booking / payment / booking / payment cancel - token 
 
 export const AuthServices = {
     credentialsLogin

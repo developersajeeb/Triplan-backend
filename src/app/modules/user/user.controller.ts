@@ -19,11 +19,6 @@ const createUser = catchAsync(async (req: Request, res: Response, next: NextFunc
 const getAllUsers = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const result = await UserServices.getAllUsers();
 
-    // res.status(httpStatus.OK).json({
-    //     success: true,
-    //     message: "All Users Retrieved Successfully",
-    //     data: users
-    // })
     sendResponse(res, {
         success: true,
         statusCode: httpStatus.CREATED,
@@ -33,9 +28,24 @@ const getAllUsers = catchAsync(async (req: Request, res: Response, next: NextFun
     })
 })
 
+const updateUser = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.params.id;
+    const verifiedToken = req.user;
+    const payload = req.body;
+    const user = await UserServices.updateUser(userId, payload, verifiedToken)
+    
+    sendResponse(res, {
+        success: true,
+        statusCode: httpStatus.CREATED,
+        message: "User Updated Successfully.",
+        data: user,
+    })
+})
+
 export const UserControllers = {
     createUser,
-    getAllUsers
+    getAllUsers,
+    updateUser
 }
 
 // route matching -> controller -> service -> model -> DB
