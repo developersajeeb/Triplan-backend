@@ -91,7 +91,7 @@ const failPayment = async (query: Record<string, string>) => {
 
         await session.commitTransaction(); //transaction
         session.endSession()
-        return { success: false, message: "Payment Failed" }
+        return { success: false, message: "Payment Failed!" }
     } catch (error) {
         await session.abortTransaction(); // rollback
         session.endSession()
@@ -123,7 +123,7 @@ const cancelPayment = async (query: Record<string, string>) => {
 
         await session.commitTransaction(); //transaction
         session.endSession()
-        return { success: false, message: "Payment Cancelled" }
+        return { success: false, message: "Payment Cancelled!" }
     } catch (error) {
         await session.abortTransaction(); // rollback
         session.endSession()
