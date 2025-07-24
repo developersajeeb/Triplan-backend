@@ -8,8 +8,8 @@ import AppError from "../../errorHelpers/AppError";
 import { User } from "../user/user.model";
 import { createNewAccessTokenWithRefreshToken } from "../../utils/userTokens";
 import { envVars } from "../../config/env";
-import { JwtPayload } from "jsonwebtoken";
-import { IAuthProvider } from "../user/user.interface";
+import jwt, { JwtPayload } from "jsonwebtoken";
+import { IAuthProvider, IsActive } from "../user/user.interface";
 
 const getNewAccessToken = async (refreshToken: string) => {
     const newAccessToken = await createNewAccessTokenWithRefreshToken(refreshToken);
