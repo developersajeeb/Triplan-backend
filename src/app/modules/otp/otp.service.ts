@@ -4,9 +4,9 @@ import AppError from "../../errorHelpers/AppError";
 import { sendEmail } from "../../utils/sendEmail";
 import { User } from "../user/user.model";
 
-const OTP_EXPIRATION = 2 * 60 // 2minute
+const OTP_EXPIRATION = 10 * 60 // 10minute
 
-const generateOtp = (length = 6) => {
+const generateOtp = (length = 4) => {
     //6 digit otp
     const otp = crypto.randomInt(10 ** (length - 1), 10 ** length).toString()
     // 10 ** 5 => 10 * 10 *10 *10 *10 * 10 => 1000000

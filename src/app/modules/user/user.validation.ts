@@ -27,8 +27,7 @@ export const createUserZodSchema = z.object({
         .string({ invalid_type_error: "Phone Number must be string" })
         .regex(/^(?:\+8801\d{9}|01\d{9})$/, {
             message: "Phone number must be valid for Bangladesh. Format: 01XXXXXXXXX",
-        })
-        .optional(),
+        }),
     address: z
         .string({ invalid_type_error: "Address must be string" })
         .max(200, { message: "Address cannot exceed 200 characters." })
