@@ -11,17 +11,27 @@ import "./app/config/passport";
 
 const app: Application = express();
 
-app.use(expressSession({
-    secret: envVars.EXPRESS_SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false
-}))
-app.use(passport.initialize())
-app.use(passport.session())
-app.use(cookieParser())
+app.use(cors({
+  origin: ["http://localhost:5173"], credentials: true
+}));
+app.use(cookieParser());
+
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }))
-app.use(cors())
+app.use(express.urlencoded({ extended: true }));
+
+app.use(expressSession({
+  secret: envVars.EXPRESS_SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: false,
+    httpOnly: true,
+    sameSite: "lax"
+  }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use("/api/v1", router)
 
@@ -29,7 +39,7 @@ app.get('/', (req: Request, res: Response) => {
     res.send(`
     <html>
       <head>
-        <title>Library Management App Api</title>
+        <title> App Api</title>
       </head>
       <body style="padding: 20px; margin: 0">
         <div style="background-color: #f2f2f2; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; border-radius: 20px">
