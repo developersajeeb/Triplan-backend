@@ -1,7 +1,9 @@
 
+import { FilterQuery } from "mongoose";
 import { deleteImageFromCLoudinary } from "../../config/cloudinary.config";
 import { QueryBuilder } from "../../utils/QueryBuilder";
-import { tourSearchableFields, tourTypeSearchableFields } from "./tour.constant";
+import { Division } from "../division/division.model";
+import { tourTypeSearchableFields } from "./tour.constant";
 import { ITour, ITourType } from "./tour.interface";
 import { Tour, TourType } from "./tour.model";
 
@@ -15,25 +17,76 @@ const createTour = async (payload: ITour) => {
     return tour;
 };
 
-const getAllTours = async (query: Record<string, string>) => {
+// const getAllTours = async (query: Record<string, string>) => {
 
-    const queryBuilder = new QueryBuilder(Tour.find(), query)
-    const tours = await queryBuilder
-        .search(tourSearchableFields)
-        .filter()
+//     const queryBuilder = new QueryBuilder(Tour.find(), query)
+//     const tours = await queryBuilder
+//         .search(tourSearchableFields)
+//         .filter()
+//         .sort()
+//         .fields()
+//         .paginate()
+
+//     const [data, meta] = await Promise.all([
+//         tours.build(),
+//         queryBuilder.getMeta()
+//     ])
+
+//     return {
+//         data,
+//         meta
+//     }
+// };
+
+const getAllTours = async (query: Record<string, string>) => {
+    const filter: FilterQuery<ITour> = {};
+
+    // TourType filter
+    if (query.tourType) {
+        const names = query.tourType.split(",");
+        const tourTypes = await TourType.find({ name: { $in: names } }).select("_id");
+        filter.tourType = { $in: tourTypes.map(t => t._id) };
+        delete query.tourType;
+    }
+
+    // Division filter
+    if (query.division) {
+        const names = query.division.split(",");
+        const divisions = await Division.find({ name: { $in: names } }).select("_id");
+        filter.division = { $in: divisions.map(d => d._id) };
+        delete query.division;
+    }
+
+    // Price filter
+    if (query.minPrice || query.maxPrice) {
+        filter.price = {};
+        if (query.minPrice) filter.price.$gte = Number(query.minPrice);
+        if (query.maxPrice) filter.price.$lte = Number(query.maxPrice);
+        delete query.minPrice;
+        delete query.maxPrice;
+    }
+
+    // Rating filter
+    if (query.rating) {
+        filter.rating = { $in: query.rating.split(",").map(Number) };
+        delete query.rating;
+    }
+
+    const queryBuilder = new QueryBuilder<ITour>(Tour.find(filter), query);
+    const toursQuery = queryBuilder
+        .search(["title", "description"])
         .sort()
-        .fields()
         .paginate()
 
-    const [data, meta] = await Promise.all([
-        tours.build(),
+    const [tours, meta] = await Promise.all([
+        toursQuery.build(),
         queryBuilder.getMeta()
-    ])
+    ]);
 
     return {
-        data,
+        data: tours,
         meta
-    }
+    };
 };
 
 const updateTour = async (id: string, payload: Partial<ITour>) => {
@@ -60,7 +113,7 @@ const updateTour = async (id: string, payload: Partial<ITour>) => {
     }
 
     const updatedTour = await Tour.findByIdAndUpdate(id, payload, { new: true });
-    
+
     if (payload.deleteImages && payload.deleteImages.length > 0 && existingTour.images && existingTour.images.length > 0) {
         await Promise.all(payload.deleteImages.map(url => deleteImageFromCLoudinary(url)))
     }
