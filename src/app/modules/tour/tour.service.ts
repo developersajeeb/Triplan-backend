@@ -17,27 +17,6 @@ const createTour = async (payload: ITour) => {
     return tour;
 };
 
-// const getAllTours = async (query: Record<string, string>) => {
-
-//     const queryBuilder = new QueryBuilder(Tour.find(), query)
-//     const tours = await queryBuilder
-//         .search(tourSearchableFields)
-//         .filter()
-//         .sort()
-//         .fields()
-//         .paginate()
-
-//     const [data, meta] = await Promise.all([
-//         tours.build(),
-//         queryBuilder.getMeta()
-//     ])
-
-//     return {
-//         data,
-//         meta
-//     }
-// };
-
 const getAllTours = async (query: Record<string, string>) => {
     const filter: FilterQuery<ITour> = {};
 
@@ -59,9 +38,9 @@ const getAllTours = async (query: Record<string, string>) => {
 
     // Price filter
     if (query.minPrice || query.maxPrice) {
-        filter.price = {};
-        if (query.minPrice) filter.price.$gte = Number(query.minPrice);
-        if (query.maxPrice) filter.price.$lte = Number(query.maxPrice);
+        filter.costFrom = {};
+        if (query.minPrice) filter.costFrom.$gte = Number(query.minPrice);
+        if (query.maxPrice) filter.costFrom.$lte = Number(query.maxPrice);
         delete query.minPrice;
         delete query.maxPrice;
     }

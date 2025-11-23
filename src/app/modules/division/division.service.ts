@@ -1,5 +1,6 @@
 import { deleteImageFromCLoudinary } from "../../config/cloudinary.config";
 import { QueryBuilder } from "../../utils/QueryBuilder";
+import { Tour } from "../tour/tour.model";
 import { divisionSearchableFields } from "./division.constant";
 import { IDivision } from "./division.interface";
 import { Division } from "./division.model";
@@ -18,7 +19,10 @@ const createDivision = async (payload: IDivision) => {
 
 const getAllDivisions = async (query: Record<string, string>) => {
 
-    const queryBuilder = new QueryBuilder(Division.find(), query)
+    const queryBuilder = new QueryBuilder(
+        Division.find().lean(),
+        query
+    );
 
     const divisionsData = queryBuilder
         .search(divisionSearchableFields)
@@ -32,8 +36,19 @@ const getAllDivisions = async (query: Record<string, string>) => {
         queryBuilder.getMeta()
     ])
 
+    const divisionsWithTourCount = await Promise.all(
+        data.map(async (division) => {
+            const totalTours = await Tour.countDocuments({ division: division._id });
+
+            return {
+                ...division,
+                totalTourListing: totalTours
+            };
+        })
+    );
+
     return {
-        data,
+        data: divisionsWithTourCount,
         meta
     }
 };
@@ -60,7 +75,7 @@ const updateDivision = async (id: string, payload: Partial<IDivision>) => {
     if (duplicateDivision) {
         throw new Error("A division with this name already exists.");
     }
-    
+
     const updatedDivision = await Division.findByIdAndUpdate(id, payload, { new: true, runValidators: true })
 
     if (payload.thumbnail && existingDivision.thumbnail) {
