@@ -1,7 +1,7 @@
+import { FilterQuery } from "mongoose";
 import { deleteImageFromCLoudinary } from "../../config/cloudinary.config";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { Tour } from "../tour/tour.model";
-import { divisionSearchableFields } from "./division.constant";
 import { IDivision } from "./division.interface";
 import { Division } from "./division.model";
 
@@ -17,40 +17,40 @@ const createDivision = async (payload: IDivision) => {
     return division
 };
 
-const getAllDivisions = async (query: Record<string, string>) => {
+const getAllDivisions = async (query: Record<string, string>) => {    
+    const filter: FilterQuery<IDivision> = {};
 
-    const queryBuilder = new QueryBuilder(
-        Division.find().lean(),
-        query
-    );
+    const queryBuilder = new QueryBuilder<Partial<IDivision>>(Division.find(filter).lean(), query);
 
-    const divisionsData = queryBuilder
-        .search(divisionSearchableFields)
-        .filter()
+    const divisionsQuery = queryBuilder
+        // .filter()
+        .search(["name", "description"])
         .sort()
-        .fields()
-        .paginate()
+        .paginate();
 
-    const [data, meta] = await Promise.all([
-        divisionsData.build(),
+    const [divisions, meta] = await Promise.all([
+        divisionsQuery.build(),
         queryBuilder.getMeta()
-    ])
+    ]);
 
-    const divisionsWithTourCount = await Promise.all(
-        data.map(async (division) => {
-            const totalTours = await Tour.countDocuments({ division: division._id });
+    const divisionIds = divisions.map(d => d._id);
 
-            return {
-                ...division,
-                totalTourListing: totalTours
-            };
-        })
-    );
+    const tourCounts = await Tour.aggregate([
+        { $match: { division: { $in: divisionIds } } },
+        { $group: { _id: "$division", count: { $sum: 1 } } }
+    ]);
+
+    const countMap = Object.fromEntries(tourCounts.map(c => [c._id, c.count]));
+
+    const divisionsWithTourCount = divisions.map(division => ({
+        ...division,
+        totalTourListing: countMap[String(division._id)] || 0
+    }));
 
     return {
         data: divisionsWithTourCount,
         meta
-    }
+    };
 };
 
 const getSingleDivision = async (slug: string) => {
