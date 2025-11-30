@@ -51,6 +51,19 @@ const getAllTours = async (query: Record<string, string>) => {
         delete query.rating;
     }
 
+    //Sort by price high/low/new
+    if (query.sort) {
+        if (query.sort === "priceHighToLow") {
+            query.sort = "-costFrom";
+        }
+        else if (query.sort === "priceLowToHigh") {
+            query.sort = "costFrom";
+        }
+        else if (query.sort === "newest") {
+            query.sort = "-createdAt";
+        }
+    }
+
     const queryBuilder = new QueryBuilder<ITour>(Tour.find(filter), query);
     const toursQuery = queryBuilder
         .search(["title", "description"])

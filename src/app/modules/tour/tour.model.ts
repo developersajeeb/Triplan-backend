@@ -31,11 +31,13 @@ const tourSchema = new Schema<ITour>({
         ref: "Division",
         required: true
     },
+    divisionName: { type: String, required: true },
     tourType: {
         type: Schema.Types.ObjectId,
         ref: "TourType",
         required: true
-    }
+    },
+    tourTypeName: { type: String, required: true }
 }, {
     timestamps: true
 })

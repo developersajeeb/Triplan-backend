@@ -17,7 +17,7 @@ const createDivision = async (payload: IDivision) => {
     return division
 };
 
-const getAllDivisions = async (query: Record<string, string>) => {    
+const getAllDivisions = async (query: Record<string, string>) => {
     const filter: FilterQuery<IDivision> = {};
 
     const queryBuilder = new QueryBuilder<Partial<IDivision>>(Division.find(filter).lean(), query);
@@ -54,10 +54,13 @@ const getAllDivisions = async (query: Record<string, string>) => {
 };
 
 const getSingleDivision = async (slug: string) => {
-    const division = await Division.findOne({ slug });
-    return {
-        data: division,
-    }
+    const formattedSlug = slug.toLowerCase();
+
+    const division = await Division.findOne({
+        name: { $regex: new RegExp(`^${formattedSlug}$`, "i") }
+    });
+
+    return { data: division };
 };
 
 const updateDivision = async (id: string, payload: Partial<IDivision>) => {
