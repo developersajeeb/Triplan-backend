@@ -16,12 +16,17 @@ const credentialsLogin = catchAsync(async (req: Request, res: Response, next: Ne
     passport.authenticate("local", async (err: any, user: any, info: any) => {
 
         if (err) {
-            return next(new AppError(401, err))
+            return next(new AppError(401, err));
         }
 
         if (!user) {
-            return next(new AppError(401, info.message))
+            return next(new AppError(401, info?.message || "Invalid email or password"));
         }
+
+        if (!user.isVerified) {
+            return next(new AppError(403, "Your account is not verified"));
+        }
+
         const userTokens = await createUserTokens(user)
         const { password: pass, ...rest } = user.toObject()
 
