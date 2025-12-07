@@ -56,7 +56,7 @@ passport.use(
         {
             clientID: envVars.GOOGLE_CLIENT_ID,
             clientSecret: envVars.GOOGLE_CLIENT_SECRET,
-            callbackURL: envVars.GOOGLE_CALLBACK_URL
+            callbackURL: envVars.GOOGLE_CALLBACK_URL,
         }, async (accessToken: string, refreshToken: string, profile: Profile, done: VerifyCallback) => {
 
             try {
@@ -103,7 +103,7 @@ passport.use(
             }
         }
     )
-)
+);
 
 passport.serializeUser((user: any, done: (err: any, id?: unknown) => void) => {
     done(null, user._id)
