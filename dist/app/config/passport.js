@@ -56,7 +56,7 @@ passport_1.default.use(new passport_local_1.Strategy({
 passport_1.default.use(new passport_google_oauth20_1.Strategy({
     clientID: env_1.envVars.GOOGLE_CLIENT_ID,
     clientSecret: env_1.envVars.GOOGLE_CLIENT_SECRET,
-    callbackURL: env_1.envVars.GOOGLE_CALLBACK_URL
+    callbackURL: env_1.envVars.GOOGLE_CALLBACK_URL,
 }, (accessToken, refreshToken, profile, done) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     try {

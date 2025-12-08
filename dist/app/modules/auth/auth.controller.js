@@ -39,7 +39,10 @@ const credentialsLogin = (0, catchAsync_1.catchAsync)((req, res, next) => __awai
             return next(new AppError_1.default(401, err));
         }
         if (!user) {
-            return next(new AppError_1.default(401, info.message));
+            return next(new AppError_1.default(401, (info === null || info === void 0 ? void 0 : info.message) || "Invalid email or password"));
+        }
+        if (!user.isVerified) {
+            return next(new AppError_1.default(403, "Your account is not verified"));
         }
         const userTokens = yield (0, userTokens_1.createUserTokens)(user);
         const _a = user.toObject(), { password: pass } = _a, rest = __rest(_a, ["password"]);
@@ -154,5 +157,5 @@ exports.AuthControllers = {
     logout,
     resetPassword,
     forgotPassword,
-    googleCallbackController
+    googleCallbackController,
 };

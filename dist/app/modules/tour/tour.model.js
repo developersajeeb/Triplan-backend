@@ -39,11 +39,13 @@ const tourSchema = new mongoose_1.Schema({
         ref: "Division",
         required: true
     },
+    divisionName: { type: String, required: true },
     tourType: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: "TourType",
         required: true
-    }
+    },
+    tourTypeName: { type: String, required: true }
 }, {
     timestamps: true
 });

@@ -16,9 +16,6 @@ interface EnvConfig {
     GOOGLE_CLIENT_SECRET: string
     GOOGLE_CLIENT_ID: string
     GOOGLE_CALLBACK_URL: string
-    FACEBOOK_CLIENT_ID: string
-    FACEBOOK_CLIENT_SECRET: string
-    FACEBOOK_CALLBACK_URL: string
     EXPRESS_SESSION_SECRET: string
     FRONTEND_URL: string
     SSL: {

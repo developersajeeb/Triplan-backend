@@ -47,10 +47,11 @@ const getAllDivisions = (query) => __awaiter(void 0, void 0, void 0, function* (
     };
 });
 const getSingleDivision = (slug) => __awaiter(void 0, void 0, void 0, function* () {
-    const division = yield division_model_1.Division.findOne({ slug });
-    return {
-        data: division,
-    };
+    const formattedSlug = slug.toLowerCase();
+    const division = yield division_model_1.Division.findOne({
+        name: { $regex: new RegExp(`^${formattedSlug}$`, "i") }
+    });
+    return { data: division };
 });
 const updateDivision = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const existingDivision = yield division_model_1.Division.findById(id);

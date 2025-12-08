@@ -10,6 +10,7 @@ exports.createTourZodSchema = zod_1.z.object({
     startDate: zod_1.z.string().optional().optional(),
     endDate: zod_1.z.string().optional().optional(),
     tourType: zod_1.z.string(), // <- changed here
+    tourTypeName: zod_1.z.string(),
     included: zod_1.z.array(zod_1.z.string()).optional(),
     excluded: zod_1.z.array(zod_1.z.string()).optional(),
     amenities: zod_1.z.array(zod_1.z.string()).optional(),
@@ -17,6 +18,7 @@ exports.createTourZodSchema = zod_1.z.object({
     maxGuest: zod_1.z.number().optional(),
     minAge: zod_1.z.number().optional(),
     division: zod_1.z.string(),
+    divisionName: zod_1.z.string(),
     departureLocation: zod_1.z.string().optional(),
     arrivalLocation: zod_1.z.string().optional()
 });

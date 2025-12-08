@@ -54,6 +54,18 @@ const getAllTours = (query) => __awaiter(void 0, void 0, void 0, function* () {
         filter.rating = { $in: query.rating.split(",").map(Number) };
         delete query.rating;
     }
+    //Sort by price high/low/new
+    if (query.sort) {
+        if (query.sort === "priceHighToLow") {
+            query.sort = "-costFrom";
+        }
+        else if (query.sort === "priceLowToHigh") {
+            query.sort = "costFrom";
+        }
+        else if (query.sort === "newest") {
+            query.sort = "-createdAt";
+        }
+    }
     const queryBuilder = new QueryBuilder_1.QueryBuilder(tour_model_1.Tour.find(filter), query);
     const toursQuery = queryBuilder
         .search(["title", "description"])
