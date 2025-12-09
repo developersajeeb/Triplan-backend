@@ -3,13 +3,15 @@ import { Server } from 'http';
 import mongoose from 'mongoose';
 import app from './app';
 import { envVars } from './app/config/env';
+import { seedSuperAdmin } from './app/utils/seedSuperAdmin';
+import { connectRedis } from './app/config/redis.config';
 
 let server: Server;
 
 async function StartServer() {
     try {
         console.log(envVars.NODE_ENV);
-        
+
         await mongoose.connect(envVars.DB_URL);
         console.log('Server is connected to database!');
         server = app.listen(envVars.PORT, () => {
@@ -19,7 +21,11 @@ async function StartServer() {
         console.log(error);
     }
 }
-StartServer()
+(async () => {
+    await connectRedis()
+    await StartServer()
+    await seedSuperAdmin()
+})()
 
 process.on('unhandledRejection', error => {
     console.log("Unhandled Rejection detected..! Server shutting down.", error);
