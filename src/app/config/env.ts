@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 dotenv.config()
-
+ 
 interface EnvConfig {
     PORT: string,
     DB_URL: string,
