@@ -11,6 +11,8 @@ import { JwtPayload } from "jsonwebtoken"
 import { createUserTokens } from "../../utils/userTokens"
 import { envVars } from "../../config/env"
 import passport from "passport"
+import { User } from "../user/user.model"
+import { IUser } from "../user/user.interface"
 
 const credentialsLogin = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
     passport.authenticate("local", async (err: any, user: any, info: any) => {
@@ -97,12 +99,12 @@ const logout = catchAsync(async (req: Request, res: Response, next: NextFunction
 
     res.clearCookie("accessToken", {
         httpOnly: true,
-        secure: false,
+        secure: true,
         sameSite: "lax"
     })
     res.clearCookie("refreshToken", {
         httpOnly: true,
-        secure: false,
+        secure: true,
         sameSite: "lax"
     })
 
@@ -148,9 +150,24 @@ const googleCallbackController = catchAsync(async (req: Request, res: Response, 
     if (redirectTo.startsWith("/")) {
         redirectTo = redirectTo.slice(1)
     }
-    const user = req.user;
-    if (!user) {
+    const profile = req.user as any;
+    if (!profile) {
         throw new AppError(httpStatus.NOT_FOUND, "User Not Found")
+    }
+    let user = await User.findOne({ email: profile.email });
+
+    if (!user) {
+        const newUserData: Partial<IUser> = {
+            name: profile.name,
+            email: profile.email,
+            picture: profile.picture,
+        };
+
+        if (profile.phone) {
+            newUserData.phone = profile.phone;
+        }
+
+        user = await User.create(newUserData);
     }
     const tokenInfo = createUserTokens(user)
 
