@@ -9,7 +9,7 @@ import { IAuthProvider, IUser, Role } from "./user.interface";
 import { User } from "./user.model";
 
 const createUser = async (payload: Partial<IUser>) => {
-    const { email, phone, password, ...rest } = payload;    
+    const { email, phone, password, ...rest } = payload;
     const isUserExist = await User.findOne({ email });
     const isUserExistWithPhone = await User.findOne({ phone });
 
@@ -30,10 +30,9 @@ const createUser = async (payload: Partial<IUser>) => {
     })
 
     return user
-
 }
 
-const updateUser = async (userId: string, payload: Partial<IUser>, decodedToken: JwtPayload) => {
+const updateUserService = async (userId: string, payload: Partial<IUser>, decodedToken: JwtPayload) => {
     const ifUserExist = await User.findById(userId);
 
     if (!ifUserExist) {
@@ -49,7 +48,11 @@ const updateUser = async (userId: string, payload: Partial<IUser>, decodedToken:
             throw new AppError(httpStatus.FORBIDDEN, "You are not authorized");
         }
     }
-    if (payload.isActive || payload.isDeleted || payload.isVerified) {
+    if (
+        payload.isActive !== undefined ||
+        payload.isDeleted !== undefined ||
+        payload.isVerified !== undefined
+    ) {
         if (decodedToken.role === Role.USER || decodedToken.role === Role.GUIDE) {
             throw new AppError(httpStatus.FORBIDDEN, "You are not authorized");
         }
@@ -61,7 +64,6 @@ const updateUser = async (userId: string, payload: Partial<IUser>, decodedToken:
 
     return newUpdatedUser
 }
-
 
 const getAllUsers = async (query: Record<string, string>) => {
     const queryBuilder = new QueryBuilder(User.find(), query)
@@ -100,6 +102,6 @@ export const UserServices = {
     createUser,
     getAllUsers,
     getSingleUser,
-    updateUser,
+    updateUserService,
     getMe
 }

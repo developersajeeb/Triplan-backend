@@ -26,6 +26,9 @@ export interface IUser {
     password?: string;
     picture?: string;
     address?: string;
+    country: string,
+    city: string,
+    post_code: string,
     isDeleted?: string;
     isActive?: IsActive;
     isVerified?: boolean;

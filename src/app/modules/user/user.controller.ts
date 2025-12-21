@@ -18,11 +18,13 @@ const createUser = catchAsync(async (req: Request, res: Response, next: NextFunc
     })
 });
 
-const updateUser = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.params.id;
-    const verifiedToken = req.user;
-    const payload = req.body;
-    const user = await UserServices.updateUser(userId, payload, verifiedToken as JwtPayload)
+const updateUserController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = req.user as JwtPayload
+    const payload = {
+        ...req.body,
+        picture: req.file?.path
+    };    
+    const user = await UserServices.updateUserService(decodedToken.userId, payload, decodedToken)
 
     sendResponse(res, {
         success: true,
@@ -72,6 +74,6 @@ export const UserControllers = {
     createUser,
     getAllUsers,
     getSingleUser,
-    updateUser,
+    updateUserController,
     getMe
 }
