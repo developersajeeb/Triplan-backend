@@ -24,10 +24,10 @@ app.use(expressSession({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
     httpOnly: true,
-    sameSite: "lax"
-  }
+    secure: true,
+    sameSite: "none",
+  },
 }));
 
 app.use(passport.initialize());
@@ -36,7 +36,7 @@ app.use(passport.session());
 app.use("/api/v1", router)
 
 app.get('/', (req: Request, res: Response) => {
-    res.send(`
+  res.send(`
     <html>
       <head>
         <title> App Api</title>
