@@ -97,16 +97,24 @@ const setPassword = catchAsync(async (req: Request, res: Response, next: NextFun
 
 const logout = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
 
-    res.clearCookie("accessToken", {
+    // res.clearCookie("accessToken", {
+    //     httpOnly: true,
+    //     secure: true,
+    //     sameSite: "lax"
+    // })
+    // res.clearCookie("refreshToken", {
+    //     httpOnly: true,
+    //     secure: true,
+    //     sameSite: "lax"
+    // })
+    const cookieOptions = {
         httpOnly: true,
         secure: true,
-        sameSite: "lax"
-    })
-    res.clearCookie("refreshToken", {
-        httpOnly: true,
-        secure: true,
-        sameSite: "lax"
-    })
+        sameSite: "none" as const,
+    };
+
+    res.clearCookie("accessToken", cookieOptions);
+    res.clearCookie("refreshToken", cookieOptions);
 
     sendResponse(res, {
         success: true,
