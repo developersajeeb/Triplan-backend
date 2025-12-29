@@ -26,6 +26,7 @@ export const setAuthCookie = (res: Response, tokenInfo: AuthTokens) => {
         secure: true,
         sameSite: "none",
         path: "/",
+        domain: ".developersajeeb.com",
     });
 
     res.cookie("refreshToken", tokenInfo.refreshToken, {
@@ -33,5 +34,6 @@ export const setAuthCookie = (res: Response, tokenInfo: AuthTokens) => {
         secure: true,
         sameSite: "none",
         path: "/",
+        domain: ".developersajeeb.com",
     });
 }
