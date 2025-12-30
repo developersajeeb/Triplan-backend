@@ -102,6 +102,7 @@ const logout = catchAsync(async (req: Request, res: Response, next: NextFunction
         secure: true,
         sameSite: "none",
         path: "/",
+        domain: ".developersajeeb.com",
     });
 
     res.clearCookie("refreshToken", {
@@ -109,6 +110,7 @@ const logout = catchAsync(async (req: Request, res: Response, next: NextFunction
         secure: true,
         sameSite: "none",
         path: "/",
+        domain: ".developersajeeb.com",
     });
 
     res.clearCookie("connect.sid", {
@@ -116,6 +118,7 @@ const logout = catchAsync(async (req: Request, res: Response, next: NextFunction
         secure: true,
         sameSite: "none",
         path: "/",
+        domain: ".developersajeeb.com",
     });
 
     sendResponse(res, {
