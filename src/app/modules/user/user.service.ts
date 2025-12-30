@@ -7,6 +7,7 @@ import { QueryBuilder } from "../../utils/QueryBuilder";
 import { userSearchableFields } from "./user.constant";
 import { IAuthProvider, IUser, Role } from "./user.interface";
 import { User } from "./user.model";
+import { Types } from "mongoose";
 
 const createUser = async (payload: Partial<IUser>) => {
     const { email, phone, password, ...rest } = payload;
@@ -98,10 +99,46 @@ const getMe = async (userId: string) => {
     }
 };
 
+const toggleWishlist = async (userId: string, tourId: string) => {
+    const user = await User.findById(userId);
+    if (!user) {
+        throw new AppError(httpStatus.NOT_FOUND, "User not found");
+    }
+    const tourObjectId = new Types.ObjectId(tourId);
+    const exists = user.wishlist.some(
+        (id) => id.toString() === tourId
+    );
+    if (exists) {
+        user.wishlist = user.wishlist.filter(
+            (id) => id.toString() !== tourId
+        );
+    } else {
+        user.wishlist.push(tourObjectId);
+    }
+    await user.save();
+    return {
+        data: user.wishlist,
+    };
+};
+
+const getWishlist = async (userId: string) => {
+    const user = await User.findById(userId).select("wishlist").populate("wishlist");
+
+    if (!user) {
+        throw new AppError(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    return {
+        data: user.wishlist
+    };
+};
+
 export const UserServices = {
     createUser,
     getAllUsers,
     getSingleUser,
     updateUserService,
-    getMe
+    getMe,
+    toggleWishlist,
+    getWishlist
 }

@@ -70,10 +70,46 @@ const getSingleUser = catchAsync(async (req: Request, res: Response, next: NextF
     })
 });
 
+const toggleWishlist = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = req.user as JwtPayload;
+    const { tourId } = req.params;
+
+    const result = await UserServices.toggleWishlist(
+      decodedToken.userId,
+      tourId
+    );
+
+    sendResponse(res, {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "Wishlist updated successfully",
+      data: result.data
+    });
+  }
+);
+
+const getWishlist = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = req.user as JwtPayload;
+
+    const result = await UserServices.getWishlist(decodedToken.userId);
+
+    sendResponse(res, {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "Wishlist retrieved successfully",
+      data: result.data,
+    });
+  }
+);
+
 export const UserControllers = {
     createUser,
     getAllUsers,
     getSingleUser,
     updateUserController,
-    getMe
+    getMe,
+    toggleWishlist,
+    getWishlist,
 }

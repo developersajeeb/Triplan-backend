@@ -85,3 +85,11 @@ export const updateUserZodSchema = z.object({
         .optional(),
     picture: z.string().optional(),
 })
+
+export const wishlistZodSchema = z.object({
+  params: z.object({
+    tourId: z.string({
+      required_error: "Tour ID is required",
+    }),
+  }),
+});
