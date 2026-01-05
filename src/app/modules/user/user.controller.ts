@@ -18,11 +18,13 @@ const createUser = catchAsync(async (req: Request, res: Response, next: NextFunc
     })
 });
 
-const updateUser = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.params.id;
-    const verifiedToken = req.user;
-    const payload = req.body;
-    const user = await UserServices.updateUser(userId, payload, verifiedToken as JwtPayload)
+const updateUserController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = req.user as JwtPayload
+    const payload = {
+        ...req.body,
+        picture: req.file?.path
+    };    
+    const user = await UserServices.updateUserService(decodedToken.userId, payload, decodedToken)
 
     sendResponse(res, {
         success: true,
@@ -68,10 +70,46 @@ const getSingleUser = catchAsync(async (req: Request, res: Response, next: NextF
     })
 });
 
+const toggleWishlist = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = req.user as JwtPayload;
+    const { tourId } = req.params;
+
+    const result = await UserServices.toggleWishlist(
+      decodedToken.userId,
+      tourId
+    );
+
+    sendResponse(res, {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "Wishlist updated successfully",
+      data: result.data
+    });
+  }
+);
+
+const getWishlist = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = req.user as JwtPayload;
+
+    const result = await UserServices.getWishlist(decodedToken.userId);
+
+    sendResponse(res, {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "Wishlist retrieved successfully",
+      data: result.data,
+    });
+  }
+);
+
 export const UserControllers = {
     createUser,
     getAllUsers,
     getSingleUser,
-    updateUser,
-    getMe
+    updateUserController,
+    getMe,
+    toggleWishlist,
+    getWishlist,
 }

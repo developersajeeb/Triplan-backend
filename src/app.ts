@@ -12,7 +12,7 @@ import "./app/config/passport";
 const app: Application = express();
 
 app.use(cors({
-  origin: ["https://triplan.developersajeeb.com"], credentials: true
+  origin: ["http://localhost:5173", "https://triplan.developersajeeb.com"], credentials: true
 }));
 app.use(cookieParser());
 
@@ -24,10 +24,10 @@ app.use(expressSession({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
     httpOnly: true,
-    sameSite: "lax"
-  }
+    secure: true,
+    sameSite: "none",
+  },
 }));
 
 app.use(passport.initialize());
@@ -36,7 +36,7 @@ app.use(passport.session());
 app.use("/api/v1", router)
 
 app.get('/', (req: Request, res: Response) => {
-    res.send(`
+  res.send(`
     <html>
       <head>
         <title> App Api</title>

@@ -1,4 +1,4 @@
-import { model, Schema } from "mongoose";
+import { model, Schema, Types } from "mongoose";
 import { IAuthProvider, IsActive, IUser, Role } from "./user.interface";
 
 
@@ -13,7 +13,7 @@ const authProviderSchema = new Schema<IAuthProvider>({
 const userSchema = new Schema<IUser>({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    phone: { type: String, required: false, unique: true },
+    phone: { type: String, required: false, unique: true, sparse: true },
     password: { type: String },
     role: {
         type: String,
@@ -22,6 +22,9 @@ const userSchema = new Schema<IUser>({
     },
     picture: { type: String },
     address: { type: String },
+    country: { type: String },
+    city: { type: String },
+    post_code: { type: String },
     isDeleted: { type: Boolean, default: false },
     isActive: {
         type: String,
@@ -30,6 +33,13 @@ const userSchema = new Schema<IUser>({
     },
     isVerified: { type: Boolean, default: false },
     auths: [authProviderSchema],
+    wishlist: [
+      {
+        type: Types.ObjectId,
+        ref: "Tour",
+        default: [],
+      },
+    ],
 }, {
     timestamps: true,
     versionKey: false

@@ -7,9 +7,10 @@ import { QueryBuilder } from "../../utils/QueryBuilder";
 import { userSearchableFields } from "./user.constant";
 import { IAuthProvider, IUser, Role } from "./user.interface";
 import { User } from "./user.model";
+import { Types } from "mongoose";
 
 const createUser = async (payload: Partial<IUser>) => {
-    const { email, phone, password, ...rest } = payload;    
+    const { email, phone, password, ...rest } = payload;
     const isUserExist = await User.findOne({ email });
     const isUserExistWithPhone = await User.findOne({ phone });
 
@@ -30,10 +31,9 @@ const createUser = async (payload: Partial<IUser>) => {
     })
 
     return user
-
 }
 
-const updateUser = async (userId: string, payload: Partial<IUser>, decodedToken: JwtPayload) => {
+const updateUserService = async (userId: string, payload: Partial<IUser>, decodedToken: JwtPayload) => {
     const ifUserExist = await User.findById(userId);
 
     if (!ifUserExist) {
@@ -49,7 +49,11 @@ const updateUser = async (userId: string, payload: Partial<IUser>, decodedToken:
             throw new AppError(httpStatus.FORBIDDEN, "You are not authorized");
         }
     }
-    if (payload.isActive || payload.isDeleted || payload.isVerified) {
+    if (
+        payload.isActive !== undefined ||
+        payload.isDeleted !== undefined ||
+        payload.isVerified !== undefined
+    ) {
         if (decodedToken.role === Role.USER || decodedToken.role === Role.GUIDE) {
             throw new AppError(httpStatus.FORBIDDEN, "You are not authorized");
         }
@@ -61,7 +65,6 @@ const updateUser = async (userId: string, payload: Partial<IUser>, decodedToken:
 
     return newUpdatedUser
 }
-
 
 const getAllUsers = async (query: Record<string, string>) => {
     const queryBuilder = new QueryBuilder(User.find(), query)
@@ -96,10 +99,46 @@ const getMe = async (userId: string) => {
     }
 };
 
+const toggleWishlist = async (userId: string, tourId: string) => {
+    const user = await User.findById(userId);
+    if (!user) {
+        throw new AppError(httpStatus.NOT_FOUND, "User not found");
+    }
+    const tourObjectId = new Types.ObjectId(tourId);
+    const exists = user.wishlist.some(
+        (id) => id.toString() === tourId
+    );
+    if (exists) {
+        user.wishlist = user.wishlist.filter(
+            (id) => id.toString() !== tourId
+        );
+    } else {
+        user.wishlist.push(tourObjectId);
+    }
+    await user.save();
+    return {
+        data: user.wishlist,
+    };
+};
+
+const getWishlist = async (userId: string) => {
+    const user = await User.findById(userId).select("wishlist").populate("wishlist");
+
+    if (!user) {
+        throw new AppError(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    return {
+        data: user.wishlist
+    };
+};
+
 export const UserServices = {
     createUser,
     getAllUsers,
     getSingleUser,
-    updateUser,
-    getMe
+    updateUserService,
+    getMe,
+    toggleWishlist,
+    getWishlist
 }

@@ -53,8 +53,8 @@ export const updateUserZodSchema = z.object({
         }).optional(),
     phone: z
         .string({ invalid_type_error: "Phone Number must be string" })
-        .regex(/^(?:\+8801\d{9}|01\d{9})$/, {
-            message: "Phone number must be valid for Bangladesh. Format: 01XXXXXXXXX",
+        .regex(/^\+?[1-9]\d{6,14}$/, {
+            message: "Phone number must be valid (international format)",
         })
         .optional(),
     role: z
@@ -73,5 +73,23 @@ export const updateUserZodSchema = z.object({
     address: z
         .string({ invalid_type_error: "Address must be string" })
         .max(200, { message: "Address cannot exceed 200 characters." })
-        .optional()
+        .optional(),
+    country: z
+        .string({ invalid_type_error: "Country must be string" })
+        .optional(),
+    city: z
+        .string({ invalid_type_error: "City must be string" })
+        .optional(),
+    post_code: z
+        .string({ invalid_type_error: "Post code must be string" })
+        .optional(),
+    picture: z.string().optional(),
 })
+
+export const wishlistZodSchema = z.object({
+  params: z.object({
+    tourId: z.string({
+      required_error: "Tour ID is required",
+    }),
+  }),
+});

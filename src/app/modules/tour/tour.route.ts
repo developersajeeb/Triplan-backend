@@ -9,40 +9,34 @@ import { multerUpload } from "../../config/multer.config";
 const router = express.Router();
 
 router.get("/tour-types", TourController.getAllTourTypes);
-
 router.post(
     "/create-tour-type",
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
     validateRequest(createTourTypeZodSchema),
     TourController.createTourType
 );
-
 router.patch(
     "/tour-types/:id",
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
     validateRequest(createTourTypeZodSchema),
     TourController.updateTourType
 );
-
 router.delete("/tour-types/:id", checkAuth(Role.ADMIN, Role.SUPER_ADMIN), TourController.deleteTourType);
-
 router.get("/", TourController.getAllTours);
-
+router.get("/slug/:slug", TourController.getSingleTour);
 router.post(
     "/create",
-    checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
+    checkAuth(Role.ADMIN, Role.SUPER_ADMIN), 
     multerUpload.array("files"),
     validateRequest(createTourZodSchema),
     TourController.createTour
 );
-
 router.patch(
     "/:id",
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
     validateRequest(updateTourZodSchema),
     TourController.updateTour
 );
-
 router.delete("/:id", checkAuth(Role.ADMIN, Role.SUPER_ADMIN), TourController.deleteTour);
 
 export const TourRoutes = router
