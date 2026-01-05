@@ -26,9 +26,9 @@ export interface IUser {
     password?: string;
     picture?: string;
     address?: string;
-    country: string,
-    city: string,
-    post_code: string,
+    country?: string,
+    city?: string,
+    post_code?: string,
     isDeleted?: string;
     isActive?: IsActive;
     isVerified?: boolean;
@@ -36,5 +36,5 @@ export interface IUser {
     auths: IAuthProvider[]
     bookings?: Types.ObjectId[]
     guides?: Types.ObjectId[]
-    wishlist: Types.ObjectId[];
+    wishlist?: Types.ObjectId[];
 }
