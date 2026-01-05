@@ -104,6 +104,9 @@ const toggleWishlist = async (userId: string, tourId: string) => {
     if (!user) {
         throw new AppError(httpStatus.NOT_FOUND, "User not found");
     }
+    if (!user.wishlist) {
+        user.wishlist = [];
+    }
     const tourObjectId = new Types.ObjectId(tourId);
     const exists = user.wishlist.some(
         (id) => id.toString() === tourId

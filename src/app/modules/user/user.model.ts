@@ -1,4 +1,4 @@
-import { model, Schema, Types } from "mongoose";
+import { model, Schema } from "mongoose";
 import { IAuthProvider, IsActive, IUser, Role } from "./user.interface";
 
 
@@ -35,7 +35,7 @@ const userSchema = new Schema<IUser>({
     auths: [authProviderSchema],
     wishlist: [
       {
-        type: Types.ObjectId,
+        type: [Schema.Types.ObjectId],
         ref: "Tour",
         default: [],
       },
