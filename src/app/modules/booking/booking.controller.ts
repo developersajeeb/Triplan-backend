@@ -53,6 +53,17 @@ const getAllBookings = catchAsync(
     }
 );
 
+const checkAvailability = catchAsync(async (req: Request, res: Response) => {    
+  const result = await BookingService.checkAvailability(req.body);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: result.message,
+    data: result,
+  });
+});
+
 const updateBookingStatus = catchAsync(
     async (req: Request, res: Response) => {
 
@@ -73,4 +84,5 @@ export const BookingController = {
     getSingleBooking,
     getUserBookings,
     updateBookingStatus,
+    checkAvailability
 }
