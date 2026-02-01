@@ -21,7 +21,13 @@ const initPayment = async (bookingId: string) => {
         throw new AppError(httpStatus.NOT_FOUND, "Payment Not Found. You have not booked this tour")
     }
 
-    const booking = await Booking.findById(payment.booking)
+    const booking = await Booking
+        .findById(payment.booking)
+        .populate("user", "name email phone address")
+
+    if (!booking || !booking.user) {
+        throw new AppError(httpStatus.BAD_REQUEST, "Invalid booking or user data");
+    }
 
     const userAddress = (booking?.user as any).address
     const userEmail = (booking?.user as any).email
@@ -37,7 +43,7 @@ const initPayment = async (bookingId: string) => {
         transactionId: payment.transactionId
     }
 
-    const sslPayment = await SSLService.sslPaymentInit(sslPayload)
+    const sslPayment = await SSLService.sslPaymentInit(sslPayload);
 
     return {
         paymentUrl: sslPayment.GatewayPageURL
