@@ -13,11 +13,9 @@ export const updateBookingStatusZodSchema = z.object({
 
 export const checkAvailabilityZodSchema = z.object({
   tour: z.string().min(1, { message: "Tour is required" }),
-
   date: z.string().min(1, { message: "Date is required" }),
 
-  guest: z
+  guestCount: z
     .number()
     .min(1, { message: "At least 1 guest is required" })
-    .max(20, { message: "Cannot book more than 20 guests" }),
 });

@@ -11,6 +11,7 @@ export interface ITour {
     location?: string;
     costFrom?: number;
     startDate?: Date;
+    regEndDate: Date;
     divisionName: string;
     tourTypeName: string;
     departureLocation?: string;

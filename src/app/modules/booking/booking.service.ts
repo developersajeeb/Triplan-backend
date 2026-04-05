@@ -84,7 +84,7 @@ const createBooking = async (payload: Partial<IBooking>, userId: string) => {
   }
 };
 
-// Frontend(localhost:5173) - User - Tour - Booking (Pending) - Payment(Unpaid) -> SSLCommerz Page -> Payment Complete -> Backend(localhost:5000/api/v1/payment/success) -> Update Payment(PAID) & Booking(CONFIRM) -> redirect to frontend -> Frontend(localhost:5173/payment/success)
+// Frontend(localhost:5173) - User - Tour - Booking (Pending) - Payment(Unpaid) -> SSLCommerz Page -> Payment Complete -> Backend(localhost:5000/api/v1/payment/success) -> Update Payment(PAID) & Booking(COMPLETE) -> redirect to frontend -> Frontend(localhost:5173/payment/success)
 // Frontend(localhost:5173) - User - Tour - Booking (Pending) - Payment(Unpaid) -> SSLCommerz Page -> Payment Fail / Cancel -> Backend(localhost:5000) -> Update Payment(FAIL / CANCEL) & Booking(FAIL / CANCEL) -> redirect to frontend -> Frontend(localhost:5173/payment/cancel or localhost:5173/payment/fail)
 
 const checkAvailability = async (payload: {
@@ -94,7 +94,7 @@ const checkAvailability = async (payload: {
 }) => {
   const { tour, date, guestCount } = payload;
 
-  const tourData = await Tour.findById(tour).select("maxGuest startDate endDate");
+  const tourData = await Tour.findById(tour).select("maxGuest regEndDate");
   if (!tourData) {
     throw new AppError(httpStatus.NOT_FOUND, "Tour not found");
   }
@@ -102,18 +102,21 @@ const checkAvailability = async (payload: {
   const maxGuest = Number(tourData.maxGuest);
   const selectedDate = new Date(date);
 
-  const startDate = tourData.startDate ? new Date(tourData.startDate) : undefined;
-  const endDate = tourData.endDate ? new Date(tourData.endDate) : undefined;
-
-  if (!startDate || !endDate) {
-    throw new AppError(httpStatus.BAD_REQUEST, "Tour start or end date is missing");
+  if (Number.isNaN(selectedDate.getTime())) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Invalid date format");
   }
 
-  if (selectedDate < startDate || selectedDate > endDate) {
+  const regEndDate = tourData.regEndDate ? new Date(tourData.regEndDate) : undefined;
+
+  if (!regEndDate) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Tour registration end date is missing");
+  }
+
+  if (selectedDate > regEndDate) {
     return {
       available: false,
       remainingSeats: 0,
-      message: "Selected date is outside of the tour dates",
+      message: "Selected date is outside registration end date",
     };
   }
 
@@ -121,8 +124,8 @@ const checkAvailability = async (payload: {
     {
       $match: {
         tour: tourData._id,
-        date: selectedDate,
-        status: { $in: ["PENDING", "CONFIRM"] },
+        // Reserve seats only for bookings with successful payment.
+        status: BOOKING_STATUS.COMPLETE,
       },
     },
     {
@@ -140,14 +143,14 @@ const checkAvailability = async (payload: {
     return {
       available: false,
       remainingSeats,
-      message: "Not enough seats available for selected date",
+      message: "Not enough seats available for this tour",
     };
   }
 
   return {
     available: true,
     remainingSeats,
-    message: "Tour is available for the selected date",
+    message: "Tour is available",
   };
 };
 

@@ -33,13 +33,12 @@ const userSchema = new Schema<IUser>({
     },
     isVerified: { type: Boolean, default: false },
     auths: [authProviderSchema],
-    wishlist: [
-      {
-        type: [Schema.Types.ObjectId],
-        ref: "Tour",
-        default: [],
-      },
-    ],
+        wishlist: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "Tour",
+            },
+        ],
 }, {
     timestamps: true,
     versionKey: false

@@ -9,6 +9,7 @@ export const createTourZodSchema = z.object({
     costFrom: z.number().optional(),
     startDate: z.string().optional().optional(),
     endDate: z.string().optional().optional(),
+    regEndDate: z.string(),
     tourType: z.string(),// <- changed here
     tourTypeName: z.string(),
     included: z.array(z.string()).optional(),

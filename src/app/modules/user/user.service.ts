@@ -9,6 +9,38 @@ import { IAuthProvider, IUser, Role } from "./user.interface";
 import { User } from "./user.model";
 import { Types } from "mongoose";
 
+const WISHLIST_LIMIT = 50;
+const WISHLIST_POPULATE_FIELDS =
+    "_id title slug arrivalLocation departureLocation location costFrom maxGuest divisionName tourTypeName images";
+
+const normalizeWishlistObjectIds = (wishlist: unknown): Types.ObjectId[] => {
+    if (!Array.isArray(wishlist)) {
+        return [];
+    }
+
+    const flatList = wishlist.flat(Infinity) as unknown[];
+    const ids = flatList
+        .map((item) => {
+            if (item instanceof Types.ObjectId) {
+                return item.toString();
+            }
+
+            if (typeof item === "string") {
+                return item;
+            }
+
+            if (item && typeof item === "object" && "_id" in item) {
+                const value = (item as { _id?: unknown })._id;
+                return typeof value === "string" ? value : "";
+            }
+
+            return "";
+        })
+        .filter((id) => Types.ObjectId.isValid(id));
+
+    return Array.from(new Set(ids)).map((id) => new Types.ObjectId(id));
+};
+
 const createUser = async (payload: Partial<IUser>) => {
     const { email, phone, password, ...rest } = payload;
     const isUserExist = await User.findOne({ email });
@@ -104,9 +136,7 @@ const toggleWishlist = async (userId: string, tourId: string) => {
     if (!user) {
         throw new AppError(httpStatus.NOT_FOUND, "User not found");
     }
-    if (!user.wishlist) {
-        user.wishlist = [];
-    }
+    user.wishlist = normalizeWishlistObjectIds(user.wishlist);
     const tourObjectId = new Types.ObjectId(tourId);
     const exists = user.wishlist.some(
         (id) => id.toString() === tourId
@@ -116,6 +146,9 @@ const toggleWishlist = async (userId: string, tourId: string) => {
             (id) => id.toString() !== tourId
         );
     } else {
+        if (user.wishlist.length >= WISHLIST_LIMIT) {
+            throw new AppError(httpStatus.BAD_REQUEST, "Wishlist limit reached. You can save up to 50 items only.");
+        }
         user.wishlist.push(tourObjectId);
     }
     await user.save();
@@ -125,7 +158,18 @@ const toggleWishlist = async (userId: string, tourId: string) => {
 };
 
 const getWishlist = async (userId: string) => {
-    const user = await User.findById(userId).select("wishlist").populate("wishlist");
+    await User.findByIdAndUpdate(userId, {
+        $set: {
+            wishlist: normalizeWishlistObjectIds((await User.findById(userId).select("wishlist"))?.wishlist),
+        },
+    });
+
+    const user = await User.findById(userId)
+        .select("wishlist")
+        .populate({
+            path: "wishlist",
+            select: WISHLIST_POPULATE_FIELDS,
+        });
 
     if (!user) {
         throw new AppError(httpStatus.NOT_FOUND, "User not found");
