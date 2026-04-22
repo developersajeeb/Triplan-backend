@@ -3,13 +3,31 @@ import { Types } from "mongoose";
 export interface ITourType {
     name: string;
 }
+
+export interface IFaqItem {
+    question: string;
+    answer: string;
+}
+
+export interface ITourBatch {
+    costFrom: number;
+    sellingPrice: number;
+    startDate: Date;
+    startTime: string;
+    endDate: Date;
+    endTime: string;
+    regEndDate: Date;
+    maxSeat: number;
+    minAge?: number;
+}
+
 export interface ITour {
     title: string;
     slug: string;
     description?: string;
     images?: string[];
-    location?: string;
     costFrom?: number;
+    sellingPrice?: number;
     startDate?: Date;
     regEndDate: Date;
     divisionName: string;
@@ -21,7 +39,8 @@ export interface ITour {
     excluded?: string[]
     amenities?: string[];
     tourPlan?: string[];
-    maxGuest?: number;
+    faq?: IFaqItem[];
+    batches?: ITourBatch[];
     minAge?: number;
     division: Types.ObjectId
     tourType: Types.ObjectId

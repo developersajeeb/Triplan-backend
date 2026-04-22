@@ -13,12 +13,42 @@ import { IUser } from "../user/user.interface";
 import { sendEmail } from "../../utils/sendEmail";
 import { uploadBufferToCloudinary } from "../../config/cloudinary.config";
 
+const getGatewayUrl = (sslPayment: any) => {
+    return (
+        sslPayment?.GatewayPageURL ||
+        sslPayment?.gatewayPageURL ||
+        sslPayment?.redirectGatewayURL ||
+        sslPayment?.redirect_url ||
+        sslPayment?.paymentUrl ||
+        sslPayment?.data?.GatewayPageURL ||
+        sslPayment?.data?.gatewayPageURL ||
+        sslPayment?.data?.redirectGatewayURL ||
+        sslPayment?.data?.redirect_url ||
+        sslPayment?.data?.paymentUrl ||
+        ""
+    );
+};
+
 const initPayment = async (bookingId: string) => {
 
     const payment = await Payment.findOne({ booking: bookingId })
 
     if (!payment) {
-        throw new AppError(httpStatus.NOT_FOUND, "Payment Not Found. You have not booked this tour")
+        // eslint-disable-next-line no-console
+        console.warn("Payment not found for booking:", bookingId);
+        throw new AppError(httpStatus.NOT_FOUND, "Booking payment information not found.")
+    }
+
+    if (payment.status === PAYMENT_STATUS.PAID) {
+        // eslint-disable-next-line no-console
+        console.warn("Payment already paid for booking:", bookingId);
+        throw new AppError(httpStatus.BAD_REQUEST, "This booking has already been paid.")
+    }
+
+    if (payment.status === PAYMENT_STATUS.CANCELLED || payment.status === PAYMENT_STATUS.FAILED) {
+        // eslint-disable-next-line no-console
+        console.warn("Payment in invalid status for init:", { bookingId, status: payment.status });
+        throw new AppError(httpStatus.BAD_REQUEST, "This booking cannot be processed further.")
     }
 
     const booking = await Booking
@@ -26,7 +56,9 @@ const initPayment = async (bookingId: string) => {
         .populate("user", "name email phone address")
 
     if (!booking || !booking.user) {
-        throw new AppError(httpStatus.BAD_REQUEST, "Invalid booking or user data");
+        // eslint-disable-next-line no-console
+        console.error("Booking or user not found:", { bookingId, hasBooking: !!booking, hasUser: !!booking?.user });
+        throw new AppError(httpStatus.BAD_REQUEST, "Booking or user information is invalid.");
     }
 
     const userAddress = (booking?.user as any).address
@@ -44,9 +76,16 @@ const initPayment = async (bookingId: string) => {
     }
 
     const sslPayment = await SSLService.sslPaymentInit(sslPayload);
+    const gatewayUrl = getGatewayUrl(sslPayment);
+
+    if (!gatewayUrl) {
+        // eslint-disable-next-line no-console
+        console.error("Payment gateway URL not received from SSLCommerz", { sslPayment });
+        throw new AppError(httpStatus.BAD_REQUEST, "Payment gateway connection failed. Please try again later.")
+    }
 
     return {
-        paymentUrl: sslPayment.GatewayPageURL
+        paymentUrl: gatewayUrl
     }
 };
 
@@ -64,7 +103,9 @@ const successPayment = async (query: Record<string, string>) => {
         }, { new: true, runValidators: true, session: session })
 
         if (!updatedPayment) {
-            throw new AppError(401, "Payment not found")
+            // eslint-disable-next-line no-console
+            console.error("Payment not found after update:", { transactionId: query.transactionId });
+            throw new AppError(401, "Payment information could not be updated.")
         }
 
         const updatedBooking = await Booking
@@ -77,7 +118,9 @@ const successPayment = async (query: Record<string, string>) => {
             .populate("user", "name email")
 
         if (!updatedBooking) {
-            throw new AppError(401, "Booking not found")
+            // eslint-disable-next-line no-console
+            console.error("Booking not found after update:", { bookingId: updatedPayment?.booking });
+            throw new AppError(401, "Booking information could not be updated.")
         }
 
         const invoiceData: IInvoiceData = {
@@ -93,7 +136,9 @@ const successPayment = async (query: Record<string, string>) => {
         const cloudinaryResult = await uploadBufferToCloudinary(pdfBuffer, "invoice")
 
         if (!cloudinaryResult) {
-            throw new AppError(401, "Error uploading pdf")
+            // eslint-disable-next-line no-console
+            console.error("Failed to upload invoice PDF to Cloudinary");
+            throw new AppError(401, "Invoice could not be generated.")
         }
 
         await Payment.findByIdAndUpdate(updatedPayment._id, { invoiceUrl: cloudinaryResult.secure_url }, { runValidators: true, session })

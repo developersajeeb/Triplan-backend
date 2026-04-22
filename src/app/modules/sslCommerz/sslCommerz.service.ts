@@ -4,6 +4,37 @@ import { envVars } from "../../config/env"
 import AppError from "../../errorHelpers/AppError"
 import { ISSLCommerz } from "./sslCommerz.interface"
 
+const normalizeSslResponse = (raw: any) => {
+    let payload = raw;
+
+    // Some gateways return JSON as string; parse if possible.
+    if (typeof raw === "string") {
+        try {
+            payload = JSON.parse(raw);
+        } catch {
+            payload = { rawText: raw };
+        }
+    }
+
+    const gatewayUrl =
+        payload?.GatewayPageURL ||
+        payload?.gatewayPageURL ||
+        payload?.redirectGatewayURL ||
+        payload?.redirect_url ||
+        payload?.paymentUrl ||
+        payload?.data?.GatewayPageURL ||
+        payload?.data?.gatewayPageURL ||
+        payload?.data?.redirectGatewayURL ||
+        payload?.data?.redirect_url ||
+        payload?.data?.paymentUrl ||
+        "";
+
+    return {
+        payload,
+        gatewayUrl,
+    };
+};
+
 const sslPaymentInit = async (payload: ISSLCommerz) => {
 
     try {
@@ -40,18 +71,53 @@ const sslPaymentInit = async (payload: ISSLCommerz) => {
             ship_country: "N/A",
         }
 
+        const formData = new URLSearchParams();
+        Object.entries(data).forEach(([key, value]) => {
+            formData.append(key, String(value));
+        });
+
         const response = await axios({
             method: "POST",
             url: envVars.SSL.SSL_PAYMENT_API,
-            data: data,
+            data: formData.toString(),
             headers: { "Content-Type": "application/x-www-form-urlencoded" }
         })
 
-        return response.data;
+        const { payload: responseData, gatewayUrl } = normalizeSslResponse(response.data);
+
+        if (!gatewayUrl) {
+            const status = responseData?.status || responseData?.data?.status || "UNKNOWN";
+            const reason =
+                responseData?.failedreason ||
+                responseData?.failedReason ||
+                responseData?.data?.failedreason ||
+                responseData?.data?.failedReason ||
+                responseData?.rawText ||
+                "No details from gateway";
+            console.error("SSLCommerz Gateway Init Failed:", { status, reason, rawResponse: responseData });
+            throw new AppError(
+                httpStatus.BAD_REQUEST,
+                `Payment gateway initialization failed. Please try again later.`
+            );
+        }
+
+        return {
+            ...responseData,
+            paymentUrl: gatewayUrl,
+            GatewayPageURL: gatewayUrl,
+        };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
-        console.log("Payment Error Occured", error);
-        throw new AppError(httpStatus.BAD_REQUEST, error.message)
+        if (error instanceof AppError) {
+            throw error;
+        }
+
+        const status = error?.response?.data?.status;
+        const reason = error?.response?.data?.failedreason || error?.response?.data?.failedReason;
+        const details = { status: status || "UNKNOWN", reason: reason || "Network error" };
+
+        console.error("SSLCommerz Request Error:", { ...details, fullError: error?.response?.data || error?.message });
+        throw new AppError(httpStatus.BAD_REQUEST, "Payment processing failed. Please try again.")
     }
 }
 

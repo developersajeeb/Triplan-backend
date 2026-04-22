@@ -3,7 +3,12 @@ import { BOOKING_STATUS } from "./booking.interface";
 
 export const createBookingZodSchema = z.object({
   tour: z.string(),
-  guestCount: z.number().int().positive()
+  date: z.string().min(1, { message: "Date is required" }),
+  guestCount: z.number().int().positive(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  country: z.string().optional(),
+  city: z.string().optional()
 
 });
 
@@ -17,5 +22,6 @@ export const checkAvailabilityZodSchema = z.object({
 
   guestCount: z
     .number()
+    .int()
     .min(1, { message: "At least 1 guest is required" })
 });

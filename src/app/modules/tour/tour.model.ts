@@ -14,8 +14,8 @@ const tourSchema = new Schema<ITour>({
     slug: { type: String, unique: true },
     description: { type: String },
     images: { type: [String], default: [] },
-    location: { type: String },
     costFrom: { type: Number },
+    sellingPrice: { type: Number },
     startDate: { type: Date },
     endDate: { type: Date },
     regEndDate: { type: Date },
@@ -25,7 +25,31 @@ const tourSchema = new Schema<ITour>({
     excluded: { type: [String], default: [] },
     amenities: { type: [String], default: [] },
     tourPlan: { type: [String], default: [] },
-    maxGuest: { type: Number },
+    faq: {
+        type: [
+            {
+                question: { type: String, required: true },
+                answer: { type: String, required: true }
+            }
+        ],
+        default: []
+    },
+    batches: {
+        type: [
+            {
+                costFrom: { type: Number, required: true },
+                sellingPrice: { type: Number, required: true },
+                startDate: { type: Date, required: true },
+                startTime: { type: String, required: true },
+                endDate: { type: Date, required: true },
+                endTime: { type: String, required: true },
+                regEndDate: { type: Date, required: true },
+                maxSeat: { type: Number, required: true },
+                minAge: { type: Number }
+            }
+        ],
+        default: []
+    },
     minAge: { type: Number },
     division: {
         type: Schema.Types.ObjectId,
