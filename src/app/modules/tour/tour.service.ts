@@ -1,11 +1,26 @@
 
-import { FilterQuery } from "mongoose";
+import { FilterQuery, type Query } from "mongoose";
 import { deleteImageFromCLoudinary } from "../../config/cloudinary.config";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { Division } from "../division/division.model";
+import { Review } from "../review/review.model";
 import { tourTypeSearchableFields } from "./tour.constant";
 import { ITour, ITourType } from "./tour.interface";
 import { Tour, TourType } from "./tour.model";
+
+type ITourListQueryItem = Partial<ITour> & {
+    _id: string;
+    title?: string;
+    slug?: string;
+    images?: string[];
+    costFrom?: number;
+    sellingPrice?: number;
+    arrivalLocation?: string;
+    divisionName?: string;
+    tourTypeName?: string;
+    createdAt?: Date | string;
+    toObject?: () => Record<string, unknown>;
+};
 
 const createTour = async (payload: ITour) => {
     const existingTour = await Tour.findOne({ title: payload.title });
@@ -19,6 +34,27 @@ const createTour = async (payload: ITour) => {
 
 const getAllTours = async (query: Record<string, string>) => {
     const filter: FilterQuery<ITour> = {};
+    const selectedRatingValues = query.rating
+        ? query.rating
+            .split(",")
+            .map((value) => Number(value))
+            .filter((value) => Number.isFinite(value) && value >= 1 && value <= 5)
+        : [];
+    const selectedRatingCeiling = selectedRatingValues.length > 0 ? Math.max(...selectedRatingValues) : null;
+    if (query.rating) {
+        delete query.rating;
+    }
+    const listProjection = [
+        "title",
+        "slug",
+        "images",
+        "costFrom",
+        "sellingPrice",
+        "arrivalLocation",
+        "divisionName",
+        "tourTypeName",
+        "createdAt"
+    ].join(" ");
 
     // TourType filter
     if (query.tourType) {
@@ -45,10 +81,53 @@ const getAllTours = async (query: Record<string, string>) => {
         delete query.maxPrice;
     }
 
-    // Rating filter
-    if (query.rating) {
-        filter.rating = { $in: query.rating.split(",").map(Number) };
-        delete query.rating;
+    if (selectedRatingCeiling !== null) {
+        const ratingMatchedTours = await Review.aggregate([
+            {
+                $match: {
+                    isDeleted: { $ne: true },
+                },
+            },
+            {
+                $group: {
+                    _id: "$tour",
+                    averageGuideRating: { $avg: "$guideRating" },
+                    averageServiceRating: { $avg: "$serviceRating" },
+                    averageTransportationRating: { $avg: "$transportationRating" },
+                    averageOrganizationRating: { $avg: "$organizationRating" },
+                },
+            },
+            {
+                $project: {
+                    roundedAverageRating: {
+                        $round: [
+                            {
+                                $divide: [
+                                    {
+                                        $add: [
+                                            "$averageGuideRating",
+                                            "$averageServiceRating",
+                                            "$averageTransportationRating",
+                                            "$averageOrganizationRating",
+                                        ],
+                                    },
+                                    4,
+                                ],
+                            },
+                            0,
+                        ],
+                    },
+                },
+            },
+            {
+                $match: {
+                    roundedAverageRating: { $lte: selectedRatingCeiling, $gte: 1 },
+                },
+            },
+        ]);
+
+        const matchedTourIds = ratingMatchedTours.map((item) => item._id);
+        filter._id = { $in: matchedTourIds };
     }
 
     //Sort by price high/low/new
@@ -64,7 +143,7 @@ const getAllTours = async (query: Record<string, string>) => {
         }
     }
 
-    const queryBuilder = new QueryBuilder<ITour>(Tour.find(filter), query);
+    const queryBuilder = new QueryBuilder<ITourListQueryItem>(Tour.find(filter).select(listProjection) as unknown as Query<ITourListQueryItem[], ITourListQueryItem>, query);
     const toursQuery = queryBuilder
         .search(["title", "description"])
         .sort()
@@ -75,8 +154,80 @@ const getAllTours = async (query: Record<string, string>) => {
         queryBuilder.getMeta()
     ]);
 
+    const tourIds = tours.map((tour) => tour._id).filter(Boolean);
+    const reviewStats = tourIds.length > 0
+        ? await Review.aggregate([
+            {
+                $match: {
+                    tour: { $in: tourIds },
+                    isDeleted: { $ne: true },
+                },
+            },
+            {
+                $group: {
+                    _id: "$tour",
+                    totalReviews: { $sum: 1 },
+                    averageGuideRating: { $avg: "$guideRating" },
+                    averageServiceRating: { $avg: "$serviceRating" },
+                    averageTransportationRating: { $avg: "$transportationRating" },
+                    averageOrganizationRating: { $avg: "$organizationRating" },
+                },
+            },
+        ])
+        : [];
+
+    const reviewStatsMap = new Map(
+        reviewStats.map((item) => {
+            const averageRating = Number(
+                (
+                    [
+                        item.averageGuideRating || 0,
+                        item.averageServiceRating || 0,
+                        item.averageTransportationRating || 0,
+                        item.averageOrganizationRating || 0,
+                    ].reduce((sum, value) => sum + value, 0) / 4 || 0
+                ).toFixed(1)
+            );
+
+            return [String(item._id), {
+                averageRating,
+                reviewCount: item.totalReviews || 0,
+            }];
+        })
+    );
+
+    const data = tours.map((tour) => {
+        const reviewSummary = reviewStatsMap.get(String(tour._id));
+        const plainTour = typeof tour.toObject === "function" ? tour.toObject() : tour;
+
+        return {
+            _id: String(tour._id),
+            title: plainTour.title || "",
+            slug: plainTour.slug || "",
+            images: Array.isArray(plainTour.images) ? plainTour.images : [],
+            costFrom: plainTour.costFrom ?? 0,
+            sellingPrice: plainTour.sellingPrice,
+            arrivalLocation: plainTour.arrivalLocation || "",
+            divisionName: plainTour.divisionName || "",
+            tourTypeName: plainTour.tourTypeName || "",
+            createdAt: plainTour.createdAt,
+            averageRating: reviewSummary?.averageRating || 0,
+            reviewCount: reviewSummary?.reviewCount || 0,
+        };
+    });
+
+    if (selectedRatingCeiling !== null) {
+        data.sort((a, b) => {
+            if (b.averageRating !== a.averageRating) {
+                return b.averageRating - a.averageRating;
+            }
+
+            return new Date(String(b.createdAt || 0)).getTime() - new Date(String(a.createdAt || 0)).getTime();
+        });
+    }
+
     return {
-        data: tours,
+        data,
         meta
     };
 };

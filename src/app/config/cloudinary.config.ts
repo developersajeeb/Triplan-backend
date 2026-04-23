@@ -10,19 +10,23 @@ cloudinary.config({
     api_secret: envVars.CLOUDINARY.CLOUDINARY_API_SECRET
 })
 
-export const uploadBufferToCloudinary = async (buffer: Buffer, fileName: string): Promise<UploadApiResponse | undefined> => {
+export const uploadBufferToCloudinary = async (
+    buffer: Buffer,
+    fileName: string,
+    folder = "pdf",
+    resourceType: "auto" | "image" | "raw" = "auto"
+): Promise<UploadApiResponse | undefined> => {
     try {
         return new Promise((resolve, reject) => {
-
-            const public_id = `pdf/${fileName}-${Date.now()}`
+            const public_id = `${fileName}-${Date.now()}`
             const bufferStream = new Stream.PassThrough();
             bufferStream.end(buffer)
 
             cloudinary.uploader.upload_stream(
                 {
-                    resource_type: "auto",
-                    public_id: public_id,
-                    folder: "pdf"
+                    resource_type: resourceType,
+                    public_id,
+                    folder,
                 },
                 (error, result) => {
                     if (error) {
