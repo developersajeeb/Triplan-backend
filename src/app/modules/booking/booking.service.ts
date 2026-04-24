@@ -333,8 +333,13 @@ const checkAvailability = async (payload: {
   };
 };
 
-const getUserBookings = async () => {
-  return {}
+const getUserBookings = async (userId: string) => {
+  const bookings = await Booking.find({ user: userId })
+    .populate("tour", "title slug images arrivalLocation startDate endDate")
+    .populate("payment", "status amount transactionId invoiceUrl")
+    .sort({ createdAt: -1 });
+
+  return bookings;
 };
 
 const getBookingById = async () => {
