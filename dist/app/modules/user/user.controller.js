@@ -27,11 +27,11 @@ const createUser = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(vo
         data: user,
     });
 }));
-const updateUser = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    const userId = req.params.id;
-    const verifiedToken = req.user;
-    const payload = req.body;
-    const user = yield user_service_1.UserServices.updateUser(userId, payload, verifiedToken);
+const updateUserController = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const decodedToken = req.user;
+    const payload = Object.assign(Object.assign({}, req.body), { picture: (_a = req.file) === null || _a === void 0 ? void 0 : _a.path });
+    const user = yield user_service_1.UserServices.updateUserService(decodedToken.userId, payload, decodedToken);
     (0, sendResponse_1.sendResponse)(res, {
         success: true,
         statusCode: http_status_codes_1.default.CREATED,
@@ -70,10 +70,33 @@ const getSingleUser = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter
         data: result.data
     });
 }));
+const toggleWishlist = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    const decodedToken = req.user;
+    const { tourId } = req.params;
+    const result = yield user_service_1.UserServices.toggleWishlist(decodedToken.userId, tourId);
+    (0, sendResponse_1.sendResponse)(res, {
+        success: true,
+        statusCode: http_status_codes_1.default.OK,
+        message: "Wishlist updated successfully",
+        data: result.data
+    });
+}));
+const getWishlist = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    const decodedToken = req.user;
+    const result = yield user_service_1.UserServices.getWishlist(decodedToken.userId);
+    (0, sendResponse_1.sendResponse)(res, {
+        success: true,
+        statusCode: http_status_codes_1.default.OK,
+        message: "Wishlist retrieved successfully",
+        data: result.data,
+    });
+}));
 exports.UserControllers = {
     createUser,
     getAllUsers,
     getSingleUser,
-    updateUser,
-    getMe
+    updateUserController,
+    getMe,
+    toggleWishlist,
+    getWishlist,
 };

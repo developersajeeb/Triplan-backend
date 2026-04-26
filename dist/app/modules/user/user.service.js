@@ -32,6 +32,31 @@ const QueryBuilder_1 = require("../../utils/QueryBuilder");
 const user_constant_1 = require("./user.constant");
 const user_interface_1 = require("./user.interface");
 const user_model_1 = require("./user.model");
+const mongoose_1 = require("mongoose");
+const WISHLIST_LIMIT = 50;
+const WISHLIST_POPULATE_FIELDS = "_id title slug arrivalLocation departureLocation location costFrom maxGuest divisionName tourTypeName images";
+const normalizeWishlistObjectIds = (wishlist) => {
+    if (!Array.isArray(wishlist)) {
+        return [];
+    }
+    const flatList = wishlist.flat(Infinity);
+    const ids = flatList
+        .map((item) => {
+        if (item instanceof mongoose_1.Types.ObjectId) {
+            return item.toString();
+        }
+        if (typeof item === "string") {
+            return item;
+        }
+        if (item && typeof item === "object" && "_id" in item) {
+            const value = item._id;
+            return typeof value === "string" ? value : "";
+        }
+        return "";
+    })
+        .filter((id) => mongoose_1.Types.ObjectId.isValid(id));
+    return Array.from(new Set(ids)).map((id) => new mongoose_1.Types.ObjectId(id));
+};
 const createUser = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     const { email, phone, password } = payload, rest = __rest(payload, ["email", "phone", "password"]);
     const isUserExist = yield user_model_1.User.findOne({ email });
@@ -48,7 +73,7 @@ const createUser = (payload) => __awaiter(void 0, void 0, void 0, function* () {
         phone, password: hashedPassword, auths: [authProvider] }, rest));
     return user;
 });
-const updateUser = (userId, payload, decodedToken) => __awaiter(void 0, void 0, void 0, function* () {
+const updateUserService = (userId, payload, decodedToken) => __awaiter(void 0, void 0, void 0, function* () {
     const ifUserExist = yield user_model_1.User.findById(userId);
     if (!ifUserExist) {
         throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "User Not Found");
@@ -61,7 +86,9 @@ const updateUser = (userId, payload, decodedToken) => __awaiter(void 0, void 0, 
             throw new AppError_1.default(http_status_codes_1.default.FORBIDDEN, "You are not authorized");
         }
     }
-    if (payload.isActive || payload.isDeleted || payload.isVerified) {
+    if (payload.isActive !== undefined ||
+        payload.isDeleted !== undefined ||
+        payload.isVerified !== undefined) {
         if (decodedToken.role === user_interface_1.Role.USER || decodedToken.role === user_interface_1.Role.GUIDE) {
             throw new AppError_1.default(http_status_codes_1.default.FORBIDDEN, "You are not authorized");
         }
@@ -101,10 +128,54 @@ const getMe = (userId) => __awaiter(void 0, void 0, void 0, function* () {
         data: user
     };
 });
+const toggleWishlist = (userId, tourId) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = yield user_model_1.User.findById(userId);
+    if (!user) {
+        throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "User not found");
+    }
+    user.wishlist = normalizeWishlistObjectIds(user.wishlist);
+    const tourObjectId = new mongoose_1.Types.ObjectId(tourId);
+    const exists = user.wishlist.some((id) => id.toString() === tourId);
+    if (exists) {
+        user.wishlist = user.wishlist.filter((id) => id.toString() !== tourId);
+    }
+    else {
+        if (user.wishlist.length >= WISHLIST_LIMIT) {
+            throw new AppError_1.default(http_status_codes_1.default.BAD_REQUEST, "Wishlist limit reached. You can save up to 50 items only.");
+        }
+        user.wishlist.push(tourObjectId);
+    }
+    yield user.save();
+    return {
+        data: user.wishlist,
+    };
+});
+const getWishlist = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    yield user_model_1.User.findByIdAndUpdate(userId, {
+        $set: {
+            wishlist: normalizeWishlistObjectIds((_a = (yield user_model_1.User.findById(userId).select("wishlist"))) === null || _a === void 0 ? void 0 : _a.wishlist),
+        },
+    });
+    const user = yield user_model_1.User.findById(userId)
+        .select("wishlist")
+        .populate({
+        path: "wishlist",
+        select: WISHLIST_POPULATE_FIELDS,
+    });
+    if (!user) {
+        throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "User not found");
+    }
+    return {
+        data: user.wishlist
+    };
+});
 exports.UserServices = {
     createUser,
     getAllUsers,
     getSingleUser,
-    updateUser,
-    getMe
+    updateUserService,
+    getMe,
+    toggleWishlist,
+    getWishlist
 };

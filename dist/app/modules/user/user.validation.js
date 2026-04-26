@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateUserZodSchema = exports.createUserZodSchema = void 0;
+exports.wishlistZodSchema = exports.updateUserZodSchema = exports.createUserZodSchema = void 0;
 const zod_1 = __importDefault(require("zod"));
 const user_interface_1 = require("./user.interface");
 exports.createUserZodSchema = zod_1.default.object({
@@ -57,8 +57,8 @@ exports.updateUserZodSchema = zod_1.default.object({
     }).optional(),
     phone: zod_1.default
         .string({ invalid_type_error: "Phone Number must be string" })
-        .regex(/^(?:\+8801\d{9}|01\d{9})$/, {
-        message: "Phone number must be valid for Bangladesh. Format: 01XXXXXXXXX",
+        .regex(/^\+?[1-9]\d{6,14}$/, {
+        message: "Phone number must be valid (international format)",
     })
         .optional(),
     role: zod_1.default
@@ -77,5 +77,22 @@ exports.updateUserZodSchema = zod_1.default.object({
     address: zod_1.default
         .string({ invalid_type_error: "Address must be string" })
         .max(200, { message: "Address cannot exceed 200 characters." })
-        .optional()
+        .optional(),
+    country: zod_1.default
+        .string({ invalid_type_error: "Country must be string" })
+        .optional(),
+    city: zod_1.default
+        .string({ invalid_type_error: "City must be string" })
+        .optional(),
+    post_code: zod_1.default
+        .string({ invalid_type_error: "Post code must be string" })
+        .optional(),
+    picture: zod_1.default.string().optional(),
+});
+exports.wishlistZodSchema = zod_1.default.object({
+    params: zod_1.default.object({
+        tourId: zod_1.default.string({
+            required_error: "Tour ID is required",
+        }),
+    }),
 });

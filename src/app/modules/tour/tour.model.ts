@@ -37,6 +37,7 @@ const tourSchema = new Schema<ITour>({
     batches: {
         type: [
             {
+                batchNo: { type: Number, required: true },
                 costFrom: { type: Number, required: true },
                 sellingPrice: { type: Number, required: true },
                 startDate: { type: Date, required: true },

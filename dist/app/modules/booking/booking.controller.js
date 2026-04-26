@@ -24,7 +24,11 @@ const createBooking = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 
     });
 }));
 const getUserBookings = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const bookings = yield booking_service_1.BookingService.getUserBookings();
+    const decodeToken = req.user;
+    const bookings = yield booking_service_1.BookingService.getUserBookings(decodeToken.userId, {
+        search: typeof req.query.search === "string" ? req.query.search : undefined,
+        status: typeof req.query.status === "string" ? req.query.status : undefined,
+    });
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: 200,
         success: true,
@@ -52,6 +56,15 @@ const getAllBookings = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void
         // meta: {},
     });
 }));
+const checkAvailability = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield booking_service_1.BookingService.checkAvailability(req.body);
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: 200,
+        success: true,
+        message: result.message,
+        data: result,
+    });
+}));
 const updateBookingStatus = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const updated = yield booking_service_1.BookingService.updateBookingStatus();
     (0, sendResponse_1.sendResponse)(res, {
@@ -67,4 +80,5 @@ exports.BookingController = {
     getSingleBooking,
     getUserBookings,
     updateBookingStatus,
+    checkAvailability
 };

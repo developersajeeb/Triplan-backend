@@ -9,6 +9,7 @@ const tour_route_1 = require("../modules/tour/tour.route");
 const booking_route_1 = require("../modules/booking/booking.route");
 const payment_route_1 = require("../modules/payment/payment.route");
 const otp_routes_1 = require("../modules/otp/otp.routes");
+const review_route_1 = require("../modules/review/review.route");
 exports.router = (0, express_1.Router)();
 const moduleRoutes = [
     {
@@ -38,6 +39,10 @@ const moduleRoutes = [
     {
         path: "/otp",
         route: otp_routes_1.OtpRoutes
+    },
+    {
+        path: "/review",
+        route: review_route_1.ReviewRoutes
     },
     // {
     //     path: "/stats",

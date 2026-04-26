@@ -10,6 +10,7 @@ export interface IFaqItem {
 }
 
 export interface ITourBatch {
+    batchNo: number;
     costFrom: number;
     sellingPrice: number;
     startDate: Date;

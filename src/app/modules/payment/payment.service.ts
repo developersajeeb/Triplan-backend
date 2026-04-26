@@ -11,7 +11,7 @@ import { generatePdf, IInvoiceData } from "../../utils/invoice";
 import { ITour } from "../tour/tour.interface";
 import { IUser } from "../user/user.interface";
 import { sendEmail } from "../../utils/sendEmail";
-import { uploadBufferToCloudinary } from "../../config/cloudinary.config";
+import { uploadBufferToCloudinary, generateSignedUrl } from "../../config/cloudinary.config";
 
 const getGatewayUrl = (sslPayment: any) => {
     return (
@@ -133,7 +133,7 @@ const successPayment = async (query: Record<string, string>) => {
         }
 
         const pdfBuffer = await generatePdf(invoiceData)
-        const cloudinaryResult = await uploadBufferToCloudinary(pdfBuffer, "invoice")
+        const cloudinaryResult = await uploadBufferToCloudinary(pdfBuffer, "invoice", "pdf", "image")
 
         if (!cloudinaryResult) {
             // eslint-disable-next-line no-console
@@ -141,7 +141,10 @@ const successPayment = async (query: Record<string, string>) => {
             throw new AppError(401, "Invoice could not be generated.")
         }
 
-        await Payment.findByIdAndUpdate(updatedPayment._id, { invoiceUrl: cloudinaryResult.secure_url }, { runValidators: true, session })
+        // Generate signed URL for PDFs to work with restricted media access
+        const signedInvoiceUrl = generateSignedUrl(cloudinaryResult.public_id, "image")
+
+        await Payment.findByIdAndUpdate(updatedPayment._id, { invoiceUrl: signedInvoiceUrl }, { runValidators: true, session })
 
         await sendEmail({
             to: (updatedBooking.user as unknown as IUser).email,

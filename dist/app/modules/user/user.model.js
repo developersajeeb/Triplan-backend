@@ -13,7 +13,7 @@ const authProviderSchema = new mongoose_1.Schema({
 const userSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    phone: { type: String, required: false, unique: true },
+    phone: { type: String, required: false, unique: true, sparse: true },
     password: { type: String },
     role: {
         type: String,
@@ -22,6 +22,9 @@ const userSchema = new mongoose_1.Schema({
     },
     picture: { type: String },
     address: { type: String },
+    country: { type: String },
+    city: { type: String },
+    post_code: { type: String },
     isDeleted: { type: Boolean, default: false },
     isActive: {
         type: String,
@@ -30,6 +33,12 @@ const userSchema = new mongoose_1.Schema({
     },
     isVerified: { type: Boolean, default: false },
     auths: [authProviderSchema],
+    wishlist: [
+        {
+            type: mongoose_1.Schema.Types.ObjectId,
+            ref: "Tour",
+        },
+    ],
 }, {
     timestamps: true,
     versionKey: false

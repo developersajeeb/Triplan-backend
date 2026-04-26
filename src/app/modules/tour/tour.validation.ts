@@ -6,6 +6,7 @@ const faqItemSchema = z.object({
 });
 
 const tourBatchSchema = z.object({
+    batchNo: z.number(),
     costFrom: z.number(),
     sellingPrice: z.number(),
     startDate: z.string(),

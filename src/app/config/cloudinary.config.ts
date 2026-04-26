@@ -64,4 +64,18 @@ export const deleteImageFromCLoudinary = async (url: string) => {
     }
 }
 
+export const generateSignedUrl = (publicId: string, resourceType: "auto" | "image" | "raw" = "auto"): string => {
+    try {
+        const signedUrl = cloudinary.url(publicId, {
+            sign_url: true,
+            resource_type: resourceType,
+            type: "upload",
+            secure: true
+        });
+        return signedUrl;
+    } catch (error: any) {
+        throw new AppError(401, "Failed to generate signed URL", error.message);
+    }
+};
+
 export const cloudinaryUpload = cloudinary

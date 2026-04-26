@@ -63,6 +63,16 @@ const getAllTourTypes = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(voi
         data: result,
     });
 }));
+const getSingleTour = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { slug } = req.params;
+    const result = yield tour_service_1.TourService.getSingleTour(slug);
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: 200,
+        success: true,
+        message: "Tour retrieved successfully",
+        data: result,
+    });
+}));
 const createTourType = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { name } = req.body;
     const result = yield tour_service_1.TourService.createTourType(name);
@@ -103,4 +113,5 @@ exports.TourController = {
     getAllTours,
     updateTour,
     deleteTour,
+    getSingleTour
 };

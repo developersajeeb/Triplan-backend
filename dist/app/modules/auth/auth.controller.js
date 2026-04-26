@@ -33,6 +33,7 @@ const setCookie_1 = require("../../utils/setCookie");
 const userTokens_1 = require("../../utils/userTokens");
 const env_1 = require("../../config/env");
 const passport_1 = __importDefault(require("passport"));
+const user_model_1 = require("../user/user.model");
 const credentialsLogin = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     passport_1.default.authenticate("local", (err, user, info) => __awaiter(void 0, void 0, void 0, function* () {
         if (err) {
@@ -99,13 +100,21 @@ const setPassword = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(v
 const logout = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     res.clearCookie("accessToken", {
         httpOnly: true,
-        secure: false,
-        sameSite: "lax"
+        secure: true,
+        sameSite: "none",
+        path: "/",
     });
     res.clearCookie("refreshToken", {
         httpOnly: true,
-        secure: false,
-        sameSite: "lax"
+        secure: true,
+        sameSite: "none",
+        path: "/",
+    });
+    res.clearCookie("connect.sid", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        path: "/",
     });
     (0, sendResponse_1.sendResponse)(res, {
         success: true,
@@ -141,9 +150,21 @@ const googleCallbackController = (0, catchAsync_1.catchAsync)((req, res, next) =
     if (redirectTo.startsWith("/")) {
         redirectTo = redirectTo.slice(1);
     }
-    const user = req.user;
-    if (!user) {
+    const profile = req.user;
+    if (!profile) {
         throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "User Not Found");
+    }
+    let user = yield user_model_1.User.findOne({ email: profile.email });
+    if (!user) {
+        const newUserData = {
+            name: profile.name,
+            email: profile.email,
+            picture: profile.picture,
+        };
+        if (profile.phone) {
+            newUserData.phone = profile.phone;
+        }
+        user = yield user_model_1.User.create(newUserData);
     }
     const tokenInfo = (0, userTokens_1.createUserTokens)(user);
     (0, setCookie_1.setAuthCookie)(res, tokenInfo);

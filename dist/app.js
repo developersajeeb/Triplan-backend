@@ -15,7 +15,7 @@ const env_1 = require("./app/config/env");
 require("./app/config/passport");
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
-    origin: ["https://triplan.developersajeeb.com"], credentials: true
+    origin: ["http://localhost:5173", "https://triplan.developersajeeb.com"], credentials: true
 }));
 app.use((0, cookie_parser_1.default)());
 app.use(express_1.default.json());
@@ -25,10 +25,10 @@ app.use((0, express_session_1.default)({
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: false,
         httpOnly: true,
-        sameSite: "lax"
-    }
+        secure: true,
+        sameSite: "none",
+    },
 }));
 app.use(passport_1.default.initialize());
 app.use(passport_1.default.session());

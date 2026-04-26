@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cloudinaryUpload = exports.deleteImageFromCLoudinary = exports.uploadBufferToCloudinary = void 0;
+exports.cloudinaryUpload = exports.generateSignedUrl = exports.deleteImageFromCLoudinary = exports.uploadBufferToCloudinary = void 0;
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const cloudinary_1 = require("cloudinary");
 const AppError_1 = __importDefault(require("../errorHelpers/AppError"));
@@ -23,16 +23,16 @@ cloudinary_1.v2.config({
     api_key: env_1.envVars.CLOUDINARY.CLOUDINARY_API_KEY,
     api_secret: env_1.envVars.CLOUDINARY.CLOUDINARY_API_SECRET
 });
-const uploadBufferToCloudinary = (buffer, fileName) => __awaiter(void 0, void 0, void 0, function* () {
+const uploadBufferToCloudinary = (buffer_1, fileName_1, ...args_1) => __awaiter(void 0, [buffer_1, fileName_1, ...args_1], void 0, function* (buffer, fileName, folder = "pdf", resourceType = "auto") {
     try {
         return new Promise((resolve, reject) => {
-            const public_id = `pdf/${fileName}-${Date.now()}`;
+            const public_id = `${fileName}-${Date.now()}`;
             const bufferStream = new xoauth2_1.Stream.PassThrough();
             bufferStream.end(buffer);
             cloudinary_1.v2.uploader.upload_stream({
-                resource_type: "auto",
-                public_id: public_id,
-                folder: "pdf"
+                resource_type: resourceType,
+                public_id,
+                folder,
             }, (error, result) => {
                 if (error) {
                     return reject(error);
@@ -64,4 +64,19 @@ const deleteImageFromCLoudinary = (url) => __awaiter(void 0, void 0, void 0, fun
     }
 });
 exports.deleteImageFromCLoudinary = deleteImageFromCLoudinary;
+const generateSignedUrl = (publicId, resourceType = "auto") => {
+    try {
+        const signedUrl = cloudinary_1.v2.url(publicId, {
+            sign_url: true,
+            resource_type: resourceType,
+            type: "upload",
+            secure: true
+        });
+        return signedUrl;
+    }
+    catch (error) {
+        throw new AppError_1.default(401, "Failed to generate signed URL", error.message);
+    }
+};
+exports.generateSignedUrl = generateSignedUrl;
 exports.cloudinaryUpload = cloudinary_1.v2;

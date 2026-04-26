@@ -23,7 +23,7 @@ const checkAuth = (...authRoles) => (req, res, next) => __awaiter(void 0, void 0
     try {
         const accessToken = req.cookies.accessToken || req.headers.authorization;
         if (!accessToken) {
-            throw new AppError_1.default(403, "No Token Recieved");
+            throw new AppError_1.default(403, "No Token Received");
         }
         const verifiedToken = (0, jwt_1.verifyToken)(accessToken, env_1.envVars.JWT_ACCESS_SECRET);
         const isUserExist = yield user_model_1.User.findOne({ email: verifiedToken.email });

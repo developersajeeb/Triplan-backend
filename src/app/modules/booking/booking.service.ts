@@ -3,7 +3,7 @@ import httpStatus from "http-status-codes";
 import AppError from "../../errorHelpers/AppError";
 import { Tour } from "../tour/tour.model";
 import { User } from "../user/user.model";
-import { BOOKING_STATUS, IBooking } from "./booking.interface";
+import { BOOKING_STATUS, IBooking, TBookingQuery, TPopulatedBooking } from "./booking.interface";
 import { Booking } from "./booking.model";
 import { PAYMENT_STATUS } from "../payment/payment.interface";
 import { Payment } from "../payment/payment.model";
@@ -49,6 +49,112 @@ const getDateKeys = (value: string | Date) => {
   }
 
   return keys;
+};
+
+const normalizeText = (value?: string) => (value ?? "").trim().toLowerCase();
+
+const parseDate = (value?: string | Date) => {
+  if (!value) {
+    return null;
+  }
+
+  const dateValue = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(dateValue.getTime())) {
+    return null;
+  }
+
+  return dateValue;
+};
+
+const formatDateKey = (value?: string | Date) => {
+  if (!value) {
+    return "";
+  }
+
+  const dateValue = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(dateValue.getTime())) {
+    return "";
+  }
+
+  return toLocalDateKey(dateValue);
+};
+
+const getTimelineStatusLabel = (booking: TPopulatedBooking) => {
+  const endDate = parseDate(
+    booking.tour?.endDate ??
+    booking.batches?.[0]?.endDate ??
+    booking.endDate ??
+    booking.tour?.startDate ??
+    booking.date
+  );
+
+  if (!endDate) {
+    return "Upcoming";
+  }
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+
+  return today > end ? "Done" : "Upcoming";
+};
+
+const getSortableDate = (booking: TPopulatedBooking) => {
+  return parseDate(
+    booking.tour?.endDate ??
+    booking.batches?.[0]?.endDate ??
+    booking.endDate ??
+    booking.tour?.startDate ??
+    booking.date ??
+    booking.createdAt
+  );
+};
+
+const getMatchingTourBatch = (booking: TPopulatedBooking) => {
+  const batches = booking.tour?.batches ?? [];
+
+  if (!batches.length) {
+    return null;
+  }
+
+  const bookingDateKey = formatDateKey(booking.date);
+  const matchedBatch = batches.find((batch) => formatDateKey(batch.startDate) === bookingDateKey);
+
+  return matchedBatch ?? batches[0] ?? null;
+};
+
+const buildBookingResponse = (booking: TPopulatedBooking) => {
+  const matchedBatch = getMatchingTourBatch(booking);
+  const timelineStatusLabel = getTimelineStatusLabel({
+    ...booking,
+    batches: matchedBatch ? [matchedBatch] : booking.batches,
+  });
+
+  return {
+    ...booking,
+    status: booking.status,
+    bookingStatus: timelineStatusLabel,
+    tour: booking.tour,
+    batches: matchedBatch
+      ? [
+          {
+            ...matchedBatch,
+            batchNo: matchedBatch.batchNo,
+            status: timelineStatusLabel,
+            bookingStatus: timelineStatusLabel,
+            payment: booking.payment
+              ? {
+                  ...booking.payment,
+                  status: booking.payment.status,
+                }
+              : undefined,
+          },
+        ]
+      : [],
+    payment: booking.payment,
+  };
 };
 
 const getGatewayUrl = (sslPayment: any) => {
@@ -333,13 +439,61 @@ const checkAvailability = async (payload: {
   };
 };
 
-const getUserBookings = async (userId: string) => {
+const getUserBookings = async (userId: string, query: TBookingQuery = {}) => {
   const bookings = await Booking.find({ user: userId })
-    .populate("tour", "title slug images arrivalLocation startDate endDate")
+    .populate("tour", "title slug images arrivalLocation startDate endDate batches")
     .populate("payment", "status amount transactionId invoiceUrl")
     .sort({ createdAt: -1 });
 
-  return bookings;
+  const search = normalizeText(query.search);
+  const statusFilter = normalizeText(query.status);
+
+  const mapped = bookings
+    .map((booking) => buildBookingResponse(booking.toObject() as unknown as TPopulatedBooking))
+    .filter((booking) => {
+      const title = normalizeText(booking.tour?.title);
+      const bookingStatus = normalizeText(booking.bookingStatus ?? booking.status);
+      const batchStatus = normalizeText(booking.batches?.[0]?.status ?? booking.batches?.[0]?.bookingStatus);
+
+      const matchesSearch = search ? title.includes(search) : true;
+      const matchesStatus = statusFilter
+        ? ((statusFilter === "completed" || statusFilter === "done")
+            ? bookingStatus.includes("done") || bookingStatus.includes("complete") || batchStatus.includes("done") || batchStatus.includes("complete")
+            : statusFilter === "upcoming"
+              ? bookingStatus.includes("upcoming") || batchStatus.includes("upcoming")
+              : bookingStatus === statusFilter || batchStatus === statusFilter)
+        : true;
+
+      return matchesSearch && matchesStatus;
+    });
+
+  return mapped.sort((a, b) => {
+    const statusA = normalizeText(a.bookingStatus);
+    const statusB = normalizeText(b.bookingStatus);
+
+    if (statusA !== statusB) {
+      return statusA.includes("upcoming") ? -1 : 1;
+    }
+
+    const dateA = getSortableDate(a as TPopulatedBooking);
+    const dateB = getSortableDate(b as TPopulatedBooking);
+
+    if (!dateA && !dateB) {
+      return 0;
+    }
+
+    if (!dateA) {
+      return 1;
+    }
+
+    if (!dateB) {
+      return -1;
+    }
+
+    return statusA.includes("upcoming")
+      ? dateA.getTime() - dateB.getTime()
+      : dateB.getTime() - dateA.getTime();
+  });
 };
 
 const getBookingById = async () => {

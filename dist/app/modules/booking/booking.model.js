@@ -14,6 +14,10 @@ const bookingSchema = new mongoose_1.Schema({
         ref: "Tour",
         required: true,
     },
+    date: {
+        type: Date,
+        required: true,
+    },
     payment: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: "Payment"

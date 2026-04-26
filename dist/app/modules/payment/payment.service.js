@@ -24,12 +24,45 @@ const payment_model_1 = require("./payment.model");
 const invoice_1 = require("../../utils/invoice");
 const sendEmail_1 = require("../../utils/sendEmail");
 const cloudinary_config_1 = require("../../config/cloudinary.config");
+const getGatewayUrl = (sslPayment) => {
+    var _a, _b, _c, _d, _e;
+    return ((sslPayment === null || sslPayment === void 0 ? void 0 : sslPayment.GatewayPageURL) ||
+        (sslPayment === null || sslPayment === void 0 ? void 0 : sslPayment.gatewayPageURL) ||
+        (sslPayment === null || sslPayment === void 0 ? void 0 : sslPayment.redirectGatewayURL) ||
+        (sslPayment === null || sslPayment === void 0 ? void 0 : sslPayment.redirect_url) ||
+        (sslPayment === null || sslPayment === void 0 ? void 0 : sslPayment.paymentUrl) ||
+        ((_a = sslPayment === null || sslPayment === void 0 ? void 0 : sslPayment.data) === null || _a === void 0 ? void 0 : _a.GatewayPageURL) ||
+        ((_b = sslPayment === null || sslPayment === void 0 ? void 0 : sslPayment.data) === null || _b === void 0 ? void 0 : _b.gatewayPageURL) ||
+        ((_c = sslPayment === null || sslPayment === void 0 ? void 0 : sslPayment.data) === null || _c === void 0 ? void 0 : _c.redirectGatewayURL) ||
+        ((_d = sslPayment === null || sslPayment === void 0 ? void 0 : sslPayment.data) === null || _d === void 0 ? void 0 : _d.redirect_url) ||
+        ((_e = sslPayment === null || sslPayment === void 0 ? void 0 : sslPayment.data) === null || _e === void 0 ? void 0 : _e.paymentUrl) ||
+        "");
+};
 const initPayment = (bookingId) => __awaiter(void 0, void 0, void 0, function* () {
     const payment = yield payment_model_1.Payment.findOne({ booking: bookingId });
     if (!payment) {
-        throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "Payment Not Found. You have not booked this tour");
+        // eslint-disable-next-line no-console
+        console.warn("Payment not found for booking:", bookingId);
+        throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "Booking payment information not found.");
     }
-    const booking = yield booking_model_1.Booking.findById(payment.booking);
+    if (payment.status === payment_interface_1.PAYMENT_STATUS.PAID) {
+        // eslint-disable-next-line no-console
+        console.warn("Payment already paid for booking:", bookingId);
+        throw new AppError_1.default(http_status_codes_1.default.BAD_REQUEST, "This booking has already been paid.");
+    }
+    if (payment.status === payment_interface_1.PAYMENT_STATUS.CANCELLED || payment.status === payment_interface_1.PAYMENT_STATUS.FAILED) {
+        // eslint-disable-next-line no-console
+        console.warn("Payment in invalid status for init:", { bookingId, status: payment.status });
+        throw new AppError_1.default(http_status_codes_1.default.BAD_REQUEST, "This booking cannot be processed further.");
+    }
+    const booking = yield booking_model_1.Booking
+        .findById(payment.booking)
+        .populate("user", "name email phone address");
+    if (!booking || !booking.user) {
+        // eslint-disable-next-line no-console
+        console.error("Booking or user not found:", { bookingId, hasBooking: !!booking, hasUser: !!(booking === null || booking === void 0 ? void 0 : booking.user) });
+        throw new AppError_1.default(http_status_codes_1.default.BAD_REQUEST, "Booking or user information is invalid.");
+    }
     const userAddress = (booking === null || booking === void 0 ? void 0 : booking.user).address;
     const userEmail = (booking === null || booking === void 0 ? void 0 : booking.user).email;
     const userPhoneNumber = (booking === null || booking === void 0 ? void 0 : booking.user).phone;
@@ -43,8 +76,14 @@ const initPayment = (bookingId) => __awaiter(void 0, void 0, void 0, function* (
         transactionId: payment.transactionId
     };
     const sslPayment = yield sslCommerz_service_1.SSLService.sslPaymentInit(sslPayload);
+    const gatewayUrl = getGatewayUrl(sslPayment);
+    if (!gatewayUrl) {
+        // eslint-disable-next-line no-console
+        console.error("Payment gateway URL not received from SSLCommerz", { sslPayment });
+        throw new AppError_1.default(http_status_codes_1.default.BAD_REQUEST, "Payment gateway connection failed. Please try again later.");
+    }
     return {
-        paymentUrl: sslPayment.GatewayPageURL
+        paymentUrl: gatewayUrl
     };
 });
 const successPayment = (query) => __awaiter(void 0, void 0, void 0, function* () {
@@ -57,14 +96,18 @@ const successPayment = (query) => __awaiter(void 0, void 0, void 0, function* ()
             status: payment_interface_1.PAYMENT_STATUS.PAID,
         }, { new: true, runValidators: true, session: session });
         if (!updatedPayment) {
-            throw new AppError_1.default(401, "Payment not found");
+            // eslint-disable-next-line no-console
+            console.error("Payment not found after update:", { transactionId: query.transactionId });
+            throw new AppError_1.default(401, "Payment information could not be updated.");
         }
         const updatedBooking = yield booking_model_1.Booking
             .findByIdAndUpdate(updatedPayment === null || updatedPayment === void 0 ? void 0 : updatedPayment.booking, { status: booking_interface_1.BOOKING_STATUS.COMPLETE }, { new: true, runValidators: true, session })
             .populate("tour", "title")
             .populate("user", "name email");
         if (!updatedBooking) {
-            throw new AppError_1.default(401, "Booking not found");
+            // eslint-disable-next-line no-console
+            console.error("Booking not found after update:", { bookingId: updatedPayment === null || updatedPayment === void 0 ? void 0 : updatedPayment.booking });
+            throw new AppError_1.default(401, "Booking information could not be updated.");
         }
         const invoiceData = {
             bookingDate: updatedBooking.createdAt,
@@ -75,11 +118,15 @@ const successPayment = (query) => __awaiter(void 0, void 0, void 0, function* ()
             userName: updatedBooking.user.name
         };
         const pdfBuffer = yield (0, invoice_1.generatePdf)(invoiceData);
-        const cloudinaryResult = yield (0, cloudinary_config_1.uploadBufferToCloudinary)(pdfBuffer, "invoice");
+        const cloudinaryResult = yield (0, cloudinary_config_1.uploadBufferToCloudinary)(pdfBuffer, "invoice", "pdf", "image");
         if (!cloudinaryResult) {
-            throw new AppError_1.default(401, "Error uploading pdf");
+            // eslint-disable-next-line no-console
+            console.error("Failed to upload invoice PDF to Cloudinary");
+            throw new AppError_1.default(401, "Invoice could not be generated.");
         }
-        yield payment_model_1.Payment.findByIdAndUpdate(updatedPayment._id, { invoiceUrl: cloudinaryResult.secure_url }, { runValidators: true, session });
+        // Generate signed URL for PDFs to work with restricted media access
+        const signedInvoiceUrl = (0, cloudinary_config_1.generateSignedUrl)(cloudinaryResult.public_id, "image");
+        yield payment_model_1.Payment.findByIdAndUpdate(updatedPayment._id, { invoiceUrl: signedInvoiceUrl }, { runValidators: true, session });
         yield (0, sendEmail_1.sendEmail)({
             to: updatedBooking.user.email,
             subject: "Your Booking Invoice - triPlan",

@@ -21,4 +21,5 @@ router.get("/my-bookings", (0, checkAuth_1.checkAuth)(...Object.values(user_inte
 router.get("/:bookingId", (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), booking_controller_1.BookingController.getSingleBooking);
 // api/v1/booking/bookingId/status
 router.patch("/:bookingId/status", (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), (0, validateRequest_1.validateRequest)(booking_validation_1.updateBookingStatusZodSchema), booking_controller_1.BookingController.updateBookingStatus);
+router.post("/check-availability", (0, validateRequest_1.validateRequest)(booking_validation_1.checkAvailabilityZodSchema), booking_controller_1.BookingController.checkAvailability);
 exports.BookingRoutes = router;
