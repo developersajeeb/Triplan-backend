@@ -42,8 +42,50 @@ const createReview = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getMyReviews = catchAsync(async (req: Request, res: Response) => {
+  const decodeToken = req.user as JwtPayload;
+  const result = await ReviewService.getMyReviews(decodeToken.userId);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "My reviews retrieved successfully",
+    data: result,
+  });
+});
+
+const deleteMyReview = catchAsync(async (req: Request, res: Response) => {
+  const decodeToken = req.user as JwtPayload;
+  const { reviewId } = req.params;
+  const result = await ReviewService.deleteMyReview(reviewId, decodeToken.userId);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Review deleted successfully",
+    data: result,
+  });
+});
+
+const updateMyReview = catchAsync(async (req: Request, res: Response) => {
+  const decodeToken = req.user as JwtPayload;
+  const { reviewId } = req.params;
+  const files = (req.files as Express.Multer.File[]) || [];
+  const result = await ReviewService.updateMyReview(reviewId, decodeToken.userId, req.body, files);
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Review updated successfully",
+    data: result,
+  });
+});
+
 export const ReviewController = {
   getTourReviews,
   getReviewEligibility,
   createReview,
+  getMyReviews,
+  deleteMyReview,
+  updateMyReview,
 };

@@ -5,7 +5,7 @@ import { BOOKING_STATUS } from "../booking/booking.interface";
 import { Booking } from "../booking/booking.model";
 import { Tour } from "../tour/tour.model";
 import { Review } from "./review.model";
-import { IReviewEligibility, ITourReviewResponse } from "./review.interface";
+import { IMyReview, IReviewEligibility, ITourReviewResponse } from "./review.interface";
 
 const uploadReviewImages = async (files: Express.Multer.File[]) => {
   if (!files.length) {
@@ -188,8 +188,127 @@ const createReview = async (
   return review;
 };
 
+const getMyReviews = async (userId: string): Promise<IMyReview[]> => {
+  const reviews = await Review.find({
+    user: userId,
+    isDeleted: { $ne: true },
+  })
+    .select(
+      "tourTitle tourSlug guideRating serviceRating transportationRating organizationRating comment images createdAt"
+    )
+    .sort({ createdAt: -1 });
+
+  return reviews.map((review) => {
+    const overallRating = Number(
+      (
+        (review.guideRating +
+          review.serviceRating +
+          review.transportationRating +
+          review.organizationRating) /
+        4
+      ).toFixed(1)
+    );
+
+    return {
+      _id: String(review._id),
+      tourTitle: review.tourTitle,
+      tourSlug: review.tourSlug,
+      createdAt: review.createdAt ? review.createdAt.toISOString() : new Date().toISOString(),
+      guideRating: review.guideRating,
+      serviceRating: review.serviceRating,
+      transportationRating: review.transportationRating,
+      organizationRating: review.organizationRating,
+      comment: review.comment,
+      images: review.images || [],
+      overallRating,
+    };
+  });
+};
+
+const deleteMyReview = async (reviewId: string, userId: string) => {
+  const review = await Review.findOne({
+    _id: reviewId,
+    user: userId,
+    isDeleted: { $ne: true },
+  }).select("_id");
+
+  if (!review) {
+    throw new AppError(httpStatus.NOT_FOUND, "Review not found.");
+  }
+
+  await Review.findByIdAndUpdate(review._id, { isDeleted: true }, { new: true });
+
+  return {
+    _id: String(review._id),
+  };
+};
+
+const parseExistingImagesPayload = (existingImages?: string | string[]) => {
+  if (!existingImages) {
+    return [] as string[];
+  }
+
+  if (Array.isArray(existingImages)) {
+    return existingImages.filter(Boolean);
+  }
+
+  try {
+    const parsed = JSON.parse(existingImages);
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string" && item) : [];
+  } catch (_error) {
+    return [];
+  }
+};
+
+const updateMyReview = async (
+  reviewId: string,
+  userId: string,
+  payload: {
+    guideRating: number;
+    serviceRating: number;
+    transportationRating: number;
+    organizationRating: number;
+    comment: string;
+    tourSlug: string;
+    tourTitle: string;
+    existingImages?: string | string[];
+  },
+  files: Express.Multer.File[]
+) => {
+  const review = await Review.findOne({
+    _id: reviewId,
+    user: userId,
+    isDeleted: { $ne: true },
+  });
+
+  if (!review) {
+    throw new AppError(httpStatus.NOT_FOUND, "Review not found.");
+  }
+
+  review.guideRating = payload.guideRating;
+  review.serviceRating = payload.serviceRating;
+  review.transportationRating = payload.transportationRating;
+  review.organizationRating = payload.organizationRating;
+  review.comment = payload.comment.trim();
+  review.tourSlug = payload.tourSlug;
+  review.tourTitle = payload.tourTitle;
+
+  const keptExistingImages = parseExistingImagesPayload(payload.existingImages).filter((image) =>
+    (review.images || []).includes(image)
+  );
+  const uploadedImages = await uploadReviewImages(files);
+  review.images = [...keptExistingImages, ...uploadedImages].slice(0, 3);
+
+  await review.save();
+
+  return review;
+};
+
 export const ReviewService = {
   getTourReviews,
   getReviewEligibility,
   createReview,
+  getMyReviews,
+  deleteMyReview,
+  updateMyReview,
 };

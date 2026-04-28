@@ -49,3 +49,17 @@ export interface ITourReviewResponse {
     overallRating: number;
   }>;
 }
+
+export interface IMyReview {
+  _id: string;
+  tourTitle: string;
+  tourSlug: string;
+  createdAt: string;
+  guideRating: number;
+  serviceRating: number;
+  transportationRating: number;
+  organizationRating: number;
+  comment: string;
+  images: string[];
+  overallRating: number;
+}
