@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { JwtPayload } from "jsonwebtoken";
 import { envVars } from "../../config/env";
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
@@ -52,6 +53,30 @@ const getInvoiceDownloadUrl = catchAsync(
     }
 );
 
+const getMyPayments = catchAsync(async (req: Request, res: Response) => {
+    const decodeToken = req.user as JwtPayload;
+    const userId = decodeToken?.userId;
+
+    if (!userId) {
+        sendResponse(res, {
+            statusCode: 401,
+            success: false,
+            message: "Unauthorized",
+            data: null,
+        });
+        return;
+    }
+
+    const result = await PaymentService.getMyPayments(userId, req.query as Record<string, string | string[]>);
+
+    sendResponse(res, {
+        statusCode: 200,
+        success: true,
+        message: "Payments retrieved successfully",
+        data: result,
+    });
+});
+
 // const validatePayment = catchAsync(
 //     async (req: Request, res: Response) => {
 //         console.log("sslcommerz ipn url body", req.body);
@@ -70,5 +95,6 @@ export const PaymentController = {
     successPayment,
     failPayment,
     cancelPayment,
-    getInvoiceDownloadUrl
+    getInvoiceDownloadUrl,
+    getMyPayments
 };

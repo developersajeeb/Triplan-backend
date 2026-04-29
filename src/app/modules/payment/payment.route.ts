@@ -6,6 +6,7 @@ import { Role } from "../user/user.interface";
 const router = express.Router();
 
 router.post("/init-payment/:bookingId", checkAuth(...Object.values(Role)), PaymentController.initPayment);
+router.get("/my-payments", checkAuth(...Object.values(Role)), PaymentController.getMyPayments);
 router.post("/success", PaymentController.successPayment);
 router.post("/fail", PaymentController.failPayment);
 router.post("/cancel", PaymentController.cancelPayment);

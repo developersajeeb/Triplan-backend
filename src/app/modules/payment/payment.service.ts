@@ -29,6 +29,103 @@ const getGatewayUrl = (sslPayment: any) => {
     );
 };
 
+const isDateOnlyString = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const toLocalDateKey = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+
+const toUTCDateKey = (date: Date) => {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+
+const getDateKeys = (value: string | Date) => {
+    const keys = new Set<string>();
+
+    if (typeof value === "string" && isDateOnlyString(value)) {
+        keys.add(value);
+    }
+
+    const dateValue = value instanceof Date ? value : new Date(value);
+
+    if (!Number.isNaN(dateValue.getTime())) {
+        keys.add(toLocalDateKey(dateValue));
+        keys.add(toUTCDateKey(dateValue));
+    }
+
+    return keys;
+};
+
+const formatDateKey = (value?: string | Date) => {
+    if (!value) {
+        return "";
+    }
+
+    const dateValue = value instanceof Date ? value : new Date(value);
+
+    if (Number.isNaN(dateValue.getTime())) {
+        return "";
+    }
+
+    return toLocalDateKey(dateValue);
+};
+
+const getMatchingTourBatch = (booking: any) => {
+    const batches = booking?.tour?.batches ?? [];
+
+    if (!batches.length) {
+        return null;
+    }
+
+    const bookingDateKey = formatDateKey(booking?.date);
+    const matchedBatch = batches.find((batch: any) => formatDateKey(batch?.startDate) === bookingDateKey);
+
+    return matchedBatch ?? batches[0] ?? null;
+};
+
+const isPaymentInDateRange = (createdAt: Date, startDate: string, endDate: string) => {
+    if (!startDate && !endDate) {
+        return true;
+    }
+
+    const paymentDate = new Date(createdAt);
+    if (Number.isNaN(paymentDate.getTime())) {
+        return false;
+    }
+
+    // Single-day filter: compare by date keys to avoid timezone boundary mismatches.
+    if (startDate && endDate && startDate === endDate && isDateOnlyString(startDate)) {
+        const paymentDateKeys = getDateKeys(paymentDate);
+        return paymentDateKeys.has(startDate);
+    }
+
+    if (startDate) {
+        const startBoundary = isDateOnlyString(startDate)
+            ? new Date(`${startDate}T00:00:00`)
+            : new Date(startDate);
+        if (!Number.isNaN(startBoundary.getTime()) && paymentDate < startBoundary) {
+            return false;
+        }
+    }
+
+    if (endDate) {
+        const endBoundary = isDateOnlyString(endDate)
+            ? new Date(`${endDate}T23:59:59.999`)
+            : new Date(endDate);
+        if (!Number.isNaN(endBoundary.getTime()) && paymentDate > endBoundary) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
 const initPayment = async (bookingId: string) => {
 
     const payment = await Payment.findOne({ booking: bookingId })
@@ -248,10 +345,82 @@ const getInvoiceDownloadUrl = async (paymentId: string) => {
     return payment.invoiceUrl
 };
 
+const getMyPayments = async (userId: string, query: Record<string, any>) => {
+    const page = parseInt(query.page as string) || 1;
+    const limit = parseInt(query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    const bookingMatch: Record<string, any> = { user: userId };
+
+    const search = typeof query.search === "string" ? query.search.trim() : "";
+    const status = typeof query.status === "string" ? query.status.trim() : "";
+    const startDate = typeof query.startDate === "string" ? query.startDate.trim() : "";
+    const endDate = typeof query.endDate === "string" ? query.endDate.trim() : "";
+
+    const payments = await Payment.find()
+        .populate({
+            path: "booking",
+            match: bookingMatch,
+            populate: [
+                { path: "tour", select: "title slug batches" },
+            ],
+            select: "tour date guestCount user",
+        })
+        .sort({ createdAt: -1 });
+
+    const filteredPayments = payments.filter((payment) => {
+        const booking = payment.booking as any;
+        if (!booking?._id) return false;
+
+        if (status && payment.status !== status) return false;
+
+        if (search) {
+            const tourTitle = booking?.tour?.title || "";
+            if (!tourTitle.toLowerCase().includes(search.toLowerCase())) return false;
+        }
+
+        if (!isPaymentInDateRange((payment as any).createdAt as Date, startDate, endDate)) {
+            return false;
+        }
+
+        return true;
+    });
+
+    const mappedPayments = filteredPayments.map((payment) => {
+        const paymentObj = payment.toObject() as any;
+        const booking = paymentObj.booking;
+        const matchedBatch = getMatchingTourBatch(booking);
+
+        return {
+            ...paymentObj,
+            booking: {
+                ...booking,
+                batchNo: matchedBatch?.batchNo ?? null,
+            },
+            batchNo: matchedBatch?.batchNo ?? null,
+        };
+    });
+
+    const total = mappedPayments.length;
+    const totalPages = Math.ceil(total / limit);
+    const paginatedPayments = mappedPayments.slice(skip, skip + limit);
+
+    return {
+        result: paginatedPayments,
+        meta: {
+            page,
+            limit,
+            total,
+            totalPages,
+        },
+    };
+};
+
 export const PaymentService = {
     initPayment,
     successPayment,
     failPayment,
     cancelPayment,
-    getInvoiceDownloadUrl
+    getInvoiceDownloadUrl,
+    getMyPayments
 };
