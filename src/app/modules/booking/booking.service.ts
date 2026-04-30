@@ -238,7 +238,7 @@ const createBooking = async (payload: ICreateBookingPayload, userId: string) => 
       throw new AppError(httpStatus.NOT_FOUND, "Tour not found. Please select another tour.")
     }
 
-    const bookingDateKeys = getDateKeys(bookingDate)
+    const bookingDateKeys = getDateKeys(String(payload.date))
     const selectedBatch = tour.batches?.find((batch) => {
       const batchDateKeys = getDateKeys(batch.startDate)
       return [...batchDateKeys].some((key) => bookingDateKeys.has(key))
@@ -269,12 +269,16 @@ const createBooking = async (payload: ICreateBookingPayload, userId: string) => 
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const amount = pricePerGuest * Number(payload.guestCount!)
 
+    const bookingDateToPersist = selectedBatch?.startDate
+      ? new Date(selectedBatch.startDate)
+      : bookingDate;
+
     const booking = await Booking.create([{
       user: userId,
       status: BOOKING_STATUS.PENDING,
       tour: payload.tour,
       guestCount: payload.guestCount,
-      date: bookingDate,
+      date: bookingDateToPersist,
     }], { session })
 
     const payment = await Payment.create([{
