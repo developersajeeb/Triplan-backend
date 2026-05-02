@@ -25,6 +25,8 @@ export interface ITourBatch {
 export interface ITour {
     title: string;
     slug: string;
+    isDraft?: boolean;
+    isTrending?: boolean;
     description?: string;
     images?: string[];
     costFrom?: number;

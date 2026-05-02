@@ -4,6 +4,8 @@ import { deleteImageFromCLoudinary } from "../../config/cloudinary.config";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { Division } from "../division/division.model";
 import { Review } from "../review/review.model";
+import { Booking } from "../booking/booking.model";
+import { BOOKING_STATUS } from "../booking/booking.interface";
 import { tourTypeSearchableFields } from "./tour.constant";
 import { ITour, ITourType } from "./tour.interface";
 import { Tour, TourType } from "./tour.model";
@@ -34,6 +36,7 @@ const createTour = async (payload: ITour) => {
 
 const getAllTours = async (query: Record<string, string>) => {
     const filter: FilterQuery<ITour> = {};
+    const requestedStatus = query.status;
     const selectedRatingValues = query.rating
         ? query.rating
             .split(",")
@@ -47,14 +50,34 @@ const getAllTours = async (query: Record<string, string>) => {
     const listProjection = [
         "title",
         "slug",
+        "isDraft",
+        "isTrending",
         "images",
         "costFrom",
         "sellingPrice",
         "arrivalLocation",
         "divisionName",
         "tourTypeName",
+        "batches",
         "createdAt"
     ].join(" ");
+
+    // Determine the display filter (what tours to show)
+    if (requestedStatus === "draft") {
+        filter.isDraft = true;
+    }
+    else if (requestedStatus === "active") {
+        filter.isDraft = { $ne: true };
+    }
+    else if (requestedStatus === "all") {
+        // Admin requesting all tours - no filter on isDraft
+    }
+    else if (!requestedStatus) {
+        // When no status filter is specified, only show active tours to public
+        filter.isDraft = { $ne: true };
+    }
+
+    delete query.status;
 
     // TourType filter
     if (query.tourType) {
@@ -155,6 +178,29 @@ const getAllTours = async (query: Record<string, string>) => {
     ]);
 
     const tourIds = tours.map((tour) => tour._id).filter(Boolean);
+    
+    // Get booking counts for each tour
+    const bookingStats = tourIds.length > 0
+        ? await Booking.aggregate([
+            {
+                $match: {
+                    tour: { $in: tourIds },
+                    status: { $in: [BOOKING_STATUS.PENDING, BOOKING_STATUS.COMPLETE] }
+                },
+            },
+            {
+                $group: {
+                    _id: "$tour",
+                    totalBookings: { $sum: 1 },
+                },
+            },
+        ])
+        : [];
+
+    const bookingStatsMap = new Map(
+        bookingStats.map((item) => [String(item._id), item.totalBookings])
+    );
+    
     const reviewStats = tourIds.length > 0
         ? await Review.aggregate([
             {
@@ -198,12 +244,15 @@ const getAllTours = async (query: Record<string, string>) => {
 
     const data = tours.map((tour) => {
         const reviewSummary = reviewStatsMap.get(String(tour._id));
+        const bookingCount = bookingStatsMap.get(String(tour._id)) || 0;
         const plainTour = typeof tour.toObject === "function" ? tour.toObject() : tour;
 
         return {
             _id: String(tour._id),
             title: plainTour.title || "",
             slug: plainTour.slug || "",
+            isDraft: Boolean(plainTour.isDraft),
+            isTrending: Boolean(plainTour.isTrending),
             images: Array.isArray(plainTour.images) ? plainTour.images : [],
             costFrom: plainTour.costFrom ?? 0,
             sellingPrice: plainTour.sellingPrice,
@@ -211,6 +260,8 @@ const getAllTours = async (query: Record<string, string>) => {
             divisionName: plainTour.divisionName || "",
             tourTypeName: plainTour.tourTypeName || "",
             createdAt: plainTour.createdAt,
+            totalBookings: bookingCount,
+            batches: plainTour.batches || [],
             averageRating: reviewSummary?.averageRating || 0,
             reviewCount: reviewSummary?.reviewCount || 0,
         };
@@ -238,6 +289,20 @@ const updateTour = async (id: string, payload: Partial<ITour>) => {
 
     if (!existingTour) {
         throw new Error("Tour not found.");
+    }
+
+    // Check if tour can be marked as draft - only if all batches have ended
+    if (payload.isDraft === true && !existingTour.isDraft) {
+        const now = new Date();
+        
+        // Check if any batch's end date is in the future
+        const hasActiveBatch = existingTour.batches?.some(batch => {
+            return new Date(batch.endDate) > now;
+        });
+
+        if (hasActiveBatch) {
+            throw new Error("Cannot mark as draft. This tour has active or upcoming batches. All batches must be completed first.");
+        }
     }
 
     if (payload.images && payload.images.length > 0 && existingTour.images && existingTour.images.length > 0) {
