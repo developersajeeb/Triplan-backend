@@ -56,6 +56,15 @@ const getAllBookings = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void
         // meta: {},
     });
 }));
+const getDashboardSummary = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield booking_service_1.BookingService.getDashboardSummary();
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: 200,
+        success: true,
+        message: "Dashboard summary retrieved successfully",
+        data: result,
+    });
+}));
 const checkAvailability = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield booking_service_1.BookingService.checkAvailability(req.body);
     (0, sendResponse_1.sendResponse)(res, {
@@ -77,6 +86,7 @@ const updateBookingStatus = (0, catchAsync_1.catchAsync)((req, res) => __awaiter
 exports.BookingController = {
     createBooking,
     getAllBookings,
+    getDashboardSummary,
     getSingleBooking,
     getUserBookings,
     updateBookingStatus,

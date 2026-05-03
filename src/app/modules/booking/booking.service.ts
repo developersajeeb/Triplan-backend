@@ -3,6 +3,7 @@ import httpStatus from "http-status-codes";
 import AppError from "../../errorHelpers/AppError";
 import { Tour } from "../tour/tour.model";
 import { User } from "../user/user.model";
+import { Review } from "../review/review.model";
 import { BOOKING_STATUS, IBooking, TBookingQuery, TPopulatedBooking } from "./booking.interface";
 import { Booking } from "./booking.model";
 import { PAYMENT_STATUS } from "../payment/payment.interface";
@@ -52,6 +53,36 @@ const getDateKeys = (value: string | Date) => {
 };
 
 const normalizeText = (value?: string) => (value ?? "").trim().toLowerCase();
+
+const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "short" });
+
+const getMonthKey = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+
+const getMonthLabel = (monthKey: string) => {
+  const [year, month] = monthKey.split("-").map(Number);
+  return monthFormatter.format(new Date(Date.UTC(year, month - 1, 1)));
+};
+
+const buildLastSixMonths = () => {
+  const months: { key: string; label: string }[] = [];
+  const now = new Date();
+
+  for (let index = 5; index >= 0; index -= 1) {
+    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - index, 1));
+    const key = getMonthKey(date);
+    months.push({ key, label: getMonthLabel(key) });
+  }
+
+  return months;
+};
+
+const getPercentageChange = (current: number, previous: number) => {
+  if (previous === 0) {
+    return current === 0 ? 0 : 100;
+  }
+
+  return Number((((current - previous) / previous) * 100).toFixed(1));
+};
 
 const parseDate = (value?: string | Date) => {
   if (!value) {
@@ -512,11 +543,352 @@ const getAllBookings = async () => {
   return {}
 };
 
+const getDashboardSummary = async () => {
+  const months = buildLastSixMonths();
+  const now = new Date();
+  const currentWindowStart = new Date(now);
+  currentWindowStart.setDate(currentWindowStart.getDate() - 30);
+  const previousWindowStart = new Date(now);
+  previousWindowStart.setDate(previousWindowStart.getDate() - 60);
+
+  const [totalBookings, revenueSummary, activeUsersSummary, reviewSummary, revenueTrend, destinationBreakdown, recentBookings, currentWindowUsers, previousWindowUsers, currentWindowRatings, previousWindowRatings] = await Promise.all([
+    Booking.countDocuments(),
+    Payment.aggregate([
+      {
+        $match: {
+          status: PAYMENT_STATUS.PAID,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$amount" },
+        },
+      },
+    ]),
+    Booking.aggregate([
+      {
+        $group: {
+          _id: "$user",
+        },
+      },
+      {
+        $count: "totalActiveUsers",
+      },
+    ]),
+    Review.aggregate([
+      {
+        $match: {
+          isDeleted: { $ne: true },
+        },
+      },
+      {
+        $project: {
+          ratingScore: {
+            $divide: [
+              { $add: ["$guideRating", "$serviceRating", "$transportationRating", "$organizationRating"] },
+              4,
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: "$ratingScore" },
+        },
+      },
+    ]),
+    Booking.aggregate([
+      {
+        $match: {
+          status: BOOKING_STATUS.COMPLETE,
+        },
+      },
+      {
+        $lookup: {
+          from: "payments",
+          localField: "payment",
+          foreignField: "_id",
+          as: "payment",
+        },
+      },
+      {
+        $unwind: "$payment",
+      },
+      {
+        $match: {
+          "payment.status": PAYMENT_STATUS.PAID,
+        },
+      },
+      {
+        $project: {
+          monthKey: {
+            $dateToString: {
+              format: "%Y-%m",
+              date: "$createdAt",
+              timezone: "UTC",
+            },
+          },
+          amount: "$payment.amount",
+        },
+      },
+      {
+        $group: {
+          _id: "$monthKey",
+          revenue: { $sum: "$amount" },
+          bookings: { $sum: 1 },
+        },
+      },
+      {
+        $sort: {
+          _id: 1,
+        },
+      },
+    ]),
+    Booking.aggregate([
+      {
+        $match: {
+          status: BOOKING_STATUS.COMPLETE,
+        },
+      },
+      {
+        $lookup: {
+          from: "tours",
+          localField: "tour",
+          foreignField: "_id",
+          as: "tour",
+        },
+      },
+      {
+        $unwind: "$tour",
+      },
+      {
+        $group: {
+          _id: {
+            $ifNull: [
+              "$tour.arrivalLocation",
+              {
+                $ifNull: ["$tour.divisionName", "$tour.title"],
+              },
+            ],
+          },
+          value: { $sum: 1 },
+        },
+      },
+      {
+        $sort: {
+          value: -1,
+        },
+      },
+      {
+        $limit: 4,
+      },
+    ]),
+    Booking.find()
+      .sort({ createdAt: -1 })
+      .limit(4)
+      .populate("user", "name")
+      .populate("tour", "title slug arrivalLocation divisionName")
+      .populate("payment", "status amount transactionId invoiceUrl")
+      .lean(),
+    Booking.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: currentWindowStart, $lte: now },
+        },
+      },
+      {
+        $group: {
+          _id: "$user",
+        },
+      },
+      {
+        $count: "totalUsers",
+      },
+    ]),
+    Booking.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: previousWindowStart, $lt: currentWindowStart },
+        },
+      },
+      {
+        $group: {
+          _id: "$user",
+        },
+      },
+      {
+        $count: "totalUsers",
+      },
+    ]),
+    Review.aggregate([
+      {
+        $match: {
+          isDeleted: { $ne: true },
+          createdAt: { $gte: currentWindowStart, $lte: now },
+        },
+      },
+      {
+        $project: {
+          ratingScore: {
+            $divide: [
+              { $add: ["$guideRating", "$serviceRating", "$transportationRating", "$organizationRating"] },
+              4,
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: "$ratingScore" },
+        },
+      },
+    ]),
+    Review.aggregate([
+      {
+        $match: {
+          isDeleted: { $ne: true },
+          createdAt: { $gte: previousWindowStart, $lt: currentWindowStart },
+        },
+      },
+      {
+        $project: {
+          ratingScore: {
+            $divide: [
+              { $add: ["$guideRating", "$serviceRating", "$transportationRating", "$organizationRating"] },
+              4,
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: "$ratingScore" },
+        },
+      },
+    ]),
+  ]);
+
+  const monthTrendMap = new Map(
+    revenueTrend.map((item) => [String(item._id), { revenue: Number(item.revenue) || 0, bookings: Number(item.bookings) || 0 }])
+  );
+
+  const recentTourIds = recentBookings
+    .map((booking) => String(booking.tour && typeof booking.tour === "object" ? booking.tour._id ?? "" : ""))
+    .filter(Boolean);
+
+  const recentReviewSummary = recentTourIds.length > 0
+    ? await Review.aggregate([
+      {
+        $match: {
+          tour: { $in: recentTourIds },
+          isDeleted: { $ne: true },
+        },
+      },
+      {
+        $project: {
+          ratingScore: {
+            $divide: [
+              { $add: ["$guideRating", "$serviceRating", "$transportationRating", "$organizationRating"] },
+              4,
+            ],
+          },
+          tour: 1,
+        },
+      },
+      {
+        $group: {
+          _id: "$tour",
+          averageRating: { $avg: "$ratingScore" },
+        },
+      },
+    ])
+    : [];
+
+  const reviewMap = new Map(
+    recentReviewSummary.map((item) => [String(item._id), Number(Number(item.averageRating || 0).toFixed(1))])
+  );
+
+  const totalRevenue = Number(revenueSummary[0]?.totalRevenue || 0);
+  const activeUsers = Number(activeUsersSummary[0]?.totalActiveUsers || 0);
+  const averageRating = Number(Number(reviewSummary[0]?.averageRating || 0).toFixed(1));
+  const currentUsers = Number(currentWindowUsers[0]?.totalUsers || 0);
+  const previousUsers = Number(previousWindowUsers[0]?.totalUsers || 0);
+  const currentAverageRating = Number(Number(currentWindowRatings[0]?.averageRating || 0).toFixed(1));
+  const previousAverageRating = Number(Number(previousWindowRatings[0]?.averageRating || 0).toFixed(1));
+
+  const revenueTrendValues = months.map((month) => {
+    const summary = monthTrendMap.get(month.key) || { revenue: 0, bookings: 0 };
+    return summary;
+  });
+
+  const latestRevenue = revenueTrendValues[revenueTrendValues.length - 1]?.revenue || 0;
+  const previousRevenue = revenueTrendValues[revenueTrendValues.length - 2]?.revenue || 0;
+  const latestBookings = revenueTrendValues[revenueTrendValues.length - 1]?.bookings || 0;
+  const previousBookings = revenueTrendValues[revenueTrendValues.length - 2]?.bookings || 0;
+
+  const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
+
+  const revenueData = months.map((month) => {
+    const summary = monthTrendMap.get(month.key) || { revenue: 0, bookings: 0 };
+    return {
+      month: month.label,
+      revenue: summary.revenue,
+      bookings: summary.bookings,
+    };
+  });
+
+  const destinationData = destinationBreakdown.map((item, index) => ({
+    name: String(item._id),
+    value: Number(item.value) || 0,
+    color: colors[index % colors.length],
+  }));
+
+  const formattedRecentBookings = recentBookings.map((booking: any) => {
+    const tour = booking.tour || {};
+    const payment = booking.payment || {};
+    const destination = tour.arrivalLocation || tour.divisionName || tour.title || "N/A";
+    const userName = booking.user?.name || "Guest";
+
+    return {
+      id: String(booking._id),
+      customer: userName,
+      destination,
+      amount: Number(payment.amount || 0),
+      status: String(booking.status || "PENDING"),
+      date: booking.createdAt || booking.date || new Date().toISOString(),
+      rating: reviewMap.get(String(tour._id ?? "")) ?? null,
+    };
+  });
+
+  return {
+    stats: {
+      totalRevenue,
+      totalBookings,
+      activeUsers,
+      averageRating,
+    },
+    trend: {
+      revenueChange: getPercentageChange(latestRevenue, previousRevenue),
+      bookingsChange: getPercentageChange(latestBookings, previousBookings),
+      activeUsersChange: getPercentageChange(currentUsers, previousUsers),
+      averageRatingChange: getPercentageChange(currentAverageRating, previousAverageRating),
+    },
+    revenueData,
+    destinationData,
+    recentBookings: formattedRecentBookings,
+  };
+};
+
 export const BookingService = {
   createBooking,
   getUserBookings,
   getBookingById,
   updateBookingStatus,
   getAllBookings,
+  getDashboardSummary,
   checkAvailability
 };

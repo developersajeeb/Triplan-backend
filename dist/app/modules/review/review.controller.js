@@ -45,8 +45,44 @@ const createReview = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0
         data: result,
     });
 }));
+const getMyReviews = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const decodeToken = req.user;
+    const result = yield review_service_1.ReviewService.getMyReviews(decodeToken.userId);
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: 200,
+        success: true,
+        message: "My reviews retrieved successfully",
+        data: result,
+    });
+}));
+const deleteMyReview = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const decodeToken = req.user;
+    const { reviewId } = req.params;
+    const result = yield review_service_1.ReviewService.deleteMyReview(reviewId, decodeToken.userId);
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: 200,
+        success: true,
+        message: "Review deleted successfully",
+        data: result,
+    });
+}));
+const updateMyReview = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const decodeToken = req.user;
+    const { reviewId } = req.params;
+    const files = req.files || [];
+    const result = yield review_service_1.ReviewService.updateMyReview(reviewId, decodeToken.userId, req.body, files);
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: 200,
+        success: true,
+        message: "Review updated successfully",
+        data: result,
+    });
+}));
 exports.ReviewController = {
     getTourReviews,
     getReviewEligibility,
     createReview,
+    getMyReviews,
+    deleteMyReview,
+    updateMyReview,
 };

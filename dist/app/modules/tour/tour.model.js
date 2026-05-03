@@ -20,6 +20,8 @@ exports.TourType = (0, mongoose_1.model)("TourType", tourTypeSchema);
 const tourSchema = new mongoose_1.Schema({
     title: { type: String, required: true },
     slug: { type: String, unique: true },
+    isDraft: { type: Boolean, default: false },
+    isTrending: { type: Boolean, default: false },
     description: { type: String },
     images: { type: [String], default: [] },
     costFrom: { type: Number },

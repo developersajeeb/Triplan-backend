@@ -18,6 +18,7 @@ const http_status_codes_1 = __importDefault(require("http-status-codes"));
 const AppError_1 = __importDefault(require("../../errorHelpers/AppError"));
 const tour_model_1 = require("../tour/tour.model");
 const user_model_1 = require("../user/user.model");
+const review_model_1 = require("../review/review.model");
 const booking_interface_1 = require("./booking.interface");
 const booking_model_1 = require("./booking.model");
 const payment_interface_1 = require("../payment/payment.interface");
@@ -50,6 +51,38 @@ const getDateKeys = (value) => {
     return keys;
 };
 const normalizeText = (value) => (value !== null && value !== void 0 ? value : "").trim().toLowerCase();
+const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "short" });
+const getMonthKey = (date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+const getMonthLabel = (monthKey) => {
+    const [year, month] = monthKey.split("-").map(Number);
+    return monthFormatter.format(new Date(Date.UTC(year, month - 1, 1)));
+};
+const buildLastSixMonths = () => {
+    const months = [];
+    const now = new Date();
+    for (let index = 5; index >= 0; index -= 1) {
+        const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - index, 1));
+        const key = getMonthKey(date);
+        months.push({ key, label: getMonthLabel(key) });
+    }
+    return months;
+};
+const getPercentageChange = (current, previous) => {
+    if (previous === 0) {
+        return current === 0 ? 0 : 100;
+    }
+    return Number((((current - previous) / previous) * 100).toFixed(1));
+};
+const parseDate = (value) => {
+    if (!value) {
+        return null;
+    }
+    const dateValue = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(dateValue.getTime())) {
+        return null;
+    }
+    return dateValue;
+};
 const formatDateKey = (value) => {
     if (!value) {
         return "";
@@ -60,13 +93,21 @@ const formatDateKey = (value) => {
     }
     return toLocalDateKey(dateValue);
 };
-const getBookingStatusLabel = (status) => {
-    if (status === booking_interface_1.BOOKING_STATUS.COMPLETE) {
-        return "Completed";
+const getTimelineStatusLabel = (booking) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    const endDate = parseDate((_h = (_f = (_e = (_b = (_a = booking.tour) === null || _a === void 0 ? void 0 : _a.endDate) !== null && _b !== void 0 ? _b : (_d = (_c = booking.batches) === null || _c === void 0 ? void 0 : _c[0]) === null || _d === void 0 ? void 0 : _d.endDate) !== null && _e !== void 0 ? _e : booking.endDate) !== null && _f !== void 0 ? _f : (_g = booking.tour) === null || _g === void 0 ? void 0 : _g.startDate) !== null && _h !== void 0 ? _h : booking.date);
+    if (!endDate) {
+        return "Upcoming";
     }
-    return "Upcoming";
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+    return today > end ? "Done" : "Upcoming";
 };
-const getTourBatchStatusLabel = (status) => getBookingStatusLabel(status);
+const getSortableDate = (booking) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    return parseDate((_j = (_h = (_f = (_e = (_b = (_a = booking.tour) === null || _a === void 0 ? void 0 : _a.endDate) !== null && _b !== void 0 ? _b : (_d = (_c = booking.batches) === null || _c === void 0 ? void 0 : _c[0]) === null || _d === void 0 ? void 0 : _d.endDate) !== null && _e !== void 0 ? _e : booking.endDate) !== null && _f !== void 0 ? _f : (_g = booking.tour) === null || _g === void 0 ? void 0 : _g.startDate) !== null && _h !== void 0 ? _h : booking.date) !== null && _j !== void 0 ? _j : booking.createdAt);
+};
 const getMatchingTourBatch = (booking) => {
     var _a, _b, _c;
     const batches = (_b = (_a = booking.tour) === null || _a === void 0 ? void 0 : _a.batches) !== null && _b !== void 0 ? _b : [];
@@ -79,10 +120,10 @@ const getMatchingTourBatch = (booking) => {
 };
 const buildBookingResponse = (booking) => {
     const matchedBatch = getMatchingTourBatch(booking);
-    const bookingStatusLabel = getBookingStatusLabel(booking.status);
-    return Object.assign(Object.assign({}, booking), { status: booking.status, bookingStatus: bookingStatusLabel, tour: booking.tour, batches: matchedBatch
+    const timelineStatusLabel = getTimelineStatusLabel(Object.assign(Object.assign({}, booking), { batches: matchedBatch ? [matchedBatch] : booking.batches }));
+    return Object.assign(Object.assign({}, booking), { status: booking.status, bookingStatus: timelineStatusLabel, tour: booking.tour, batches: matchedBatch
             ? [
-                Object.assign(Object.assign({}, matchedBatch), { batchNo: matchedBatch.batchNo, status: getTourBatchStatusLabel(booking.status), bookingStatus: bookingStatusLabel, payment: booking.payment
+                Object.assign(Object.assign({}, matchedBatch), { batchNo: matchedBatch.batchNo, status: timelineStatusLabel, bookingStatus: timelineStatusLabel, payment: booking.payment
                         ? Object.assign(Object.assign({}, booking.payment), { status: booking.payment.status }) : undefined }),
             ]
             : [], payment: booking.payment });
@@ -144,7 +185,7 @@ const createBooking = (payload, userId) => __awaiter(void 0, void 0, void 0, fun
             console.error("Tour not found:", payload.tour);
             throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "Tour not found. Please select another tour.");
         }
-        const bookingDateKeys = getDateKeys(bookingDate);
+        const bookingDateKeys = getDateKeys(String(payload.date));
         const selectedBatch = (_e = tour.batches) === null || _e === void 0 ? void 0 : _e.find((batch) => {
             const batchDateKeys = getDateKeys(batch.startDate);
             return [...batchDateKeys].some((key) => bookingDateKeys.has(key));
@@ -169,12 +210,15 @@ const createBooking = (payload, userId) => __awaiter(void 0, void 0, void 0, fun
         }
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         const amount = pricePerGuest * Number(payload.guestCount);
+        const bookingDateToPersist = (selectedBatch === null || selectedBatch === void 0 ? void 0 : selectedBatch.startDate)
+            ? new Date(selectedBatch.startDate)
+            : bookingDate;
         const booking = yield booking_model_1.Booking.create([{
                 user: userId,
                 status: booking_interface_1.BOOKING_STATUS.PENDING,
                 tour: payload.tour,
                 guestCount: payload.guestCount,
-                date: bookingDate,
+                date: bookingDateToPersist,
             }], { session });
         const payment = yield payment_model_1.Payment.create([{
                 booking: booking[0]._id,
@@ -316,7 +360,7 @@ const getUserBookings = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ..
         .sort({ createdAt: -1 });
     const search = normalizeText(query.search);
     const statusFilter = normalizeText(query.status);
-    return bookings
+    const mapped = bookings
         .map((booking) => buildBookingResponse(booking.toObject()))
         .filter((booking) => {
         var _a, _b, _c, _d, _e, _f, _g;
@@ -325,11 +369,34 @@ const getUserBookings = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ..
         const batchStatus = normalizeText((_e = (_d = (_c = booking.batches) === null || _c === void 0 ? void 0 : _c[0]) === null || _d === void 0 ? void 0 : _d.status) !== null && _e !== void 0 ? _e : (_g = (_f = booking.batches) === null || _f === void 0 ? void 0 : _f[0]) === null || _g === void 0 ? void 0 : _g.bookingStatus);
         const matchesSearch = search ? title.includes(search) : true;
         const matchesStatus = statusFilter
-            ? (statusFilter === "completed"
-                ? bookingStatus.includes("complete") || batchStatus.includes("complete")
-                : bookingStatus.includes("upcoming") || batchStatus.includes("upcoming"))
+            ? ((statusFilter === "completed" || statusFilter === "done")
+                ? bookingStatus.includes("done") || bookingStatus.includes("complete") || batchStatus.includes("done") || batchStatus.includes("complete")
+                : statusFilter === "upcoming"
+                    ? bookingStatus.includes("upcoming") || batchStatus.includes("upcoming")
+                    : bookingStatus === statusFilter || batchStatus === statusFilter)
             : true;
         return matchesSearch && matchesStatus;
+    });
+    return mapped.sort((a, b) => {
+        const statusA = normalizeText(a.bookingStatus);
+        const statusB = normalizeText(b.bookingStatus);
+        if (statusA !== statusB) {
+            return statusA.includes("upcoming") ? -1 : 1;
+        }
+        const dateA = getSortableDate(a);
+        const dateB = getSortableDate(b);
+        if (!dateA && !dateB) {
+            return 0;
+        }
+        if (!dateA) {
+            return 1;
+        }
+        if (!dateB) {
+            return -1;
+        }
+        return statusA.includes("upcoming")
+            ? dateA.getTime() - dateB.getTime()
+            : dateB.getTime() - dateA.getTime();
     });
 });
 const getBookingById = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -341,11 +408,335 @@ const updateBookingStatus = () => __awaiter(void 0, void 0, void 0, function* ()
 const getAllBookings = () => __awaiter(void 0, void 0, void 0, function* () {
     return {};
 });
+const getDashboardSummary = () => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+    const months = buildLastSixMonths();
+    const now = new Date();
+    const currentWindowStart = new Date(now);
+    currentWindowStart.setDate(currentWindowStart.getDate() - 30);
+    const previousWindowStart = new Date(now);
+    previousWindowStart.setDate(previousWindowStart.getDate() - 60);
+    const [totalBookings, revenueSummary, activeUsersSummary, reviewSummary, revenueTrend, destinationBreakdown, recentBookings, currentWindowUsers, previousWindowUsers, currentWindowRatings, previousWindowRatings] = yield Promise.all([
+        booking_model_1.Booking.countDocuments(),
+        payment_model_1.Payment.aggregate([
+            {
+                $match: {
+                    status: payment_interface_1.PAYMENT_STATUS.PAID,
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalRevenue: { $sum: "$amount" },
+                },
+            },
+        ]),
+        booking_model_1.Booking.aggregate([
+            {
+                $group: {
+                    _id: "$user",
+                },
+            },
+            {
+                $count: "totalActiveUsers",
+            },
+        ]),
+        review_model_1.Review.aggregate([
+            {
+                $match: {
+                    isDeleted: { $ne: true },
+                },
+            },
+            {
+                $project: {
+                    ratingScore: {
+                        $divide: [
+                            { $add: ["$guideRating", "$serviceRating", "$transportationRating", "$organizationRating"] },
+                            4,
+                        ],
+                    },
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    averageRating: { $avg: "$ratingScore" },
+                },
+            },
+        ]),
+        booking_model_1.Booking.aggregate([
+            {
+                $match: {
+                    status: booking_interface_1.BOOKING_STATUS.COMPLETE,
+                },
+            },
+            {
+                $lookup: {
+                    from: "payments",
+                    localField: "payment",
+                    foreignField: "_id",
+                    as: "payment",
+                },
+            },
+            {
+                $unwind: "$payment",
+            },
+            {
+                $match: {
+                    "payment.status": payment_interface_1.PAYMENT_STATUS.PAID,
+                },
+            },
+            {
+                $project: {
+                    monthKey: {
+                        $dateToString: {
+                            format: "%Y-%m",
+                            date: "$createdAt",
+                            timezone: "UTC",
+                        },
+                    },
+                    amount: "$payment.amount",
+                },
+            },
+            {
+                $group: {
+                    _id: "$monthKey",
+                    revenue: { $sum: "$amount" },
+                    bookings: { $sum: 1 },
+                },
+            },
+            {
+                $sort: {
+                    _id: 1,
+                },
+            },
+        ]),
+        booking_model_1.Booking.aggregate([
+            {
+                $match: {
+                    status: booking_interface_1.BOOKING_STATUS.COMPLETE,
+                },
+            },
+            {
+                $lookup: {
+                    from: "tours",
+                    localField: "tour",
+                    foreignField: "_id",
+                    as: "tour",
+                },
+            },
+            {
+                $unwind: "$tour",
+            },
+            {
+                $group: {
+                    _id: {
+                        $ifNull: [
+                            "$tour.arrivalLocation",
+                            {
+                                $ifNull: ["$tour.divisionName", "$tour.title"],
+                            },
+                        ],
+                    },
+                    value: { $sum: 1 },
+                },
+            },
+            {
+                $sort: {
+                    value: -1,
+                },
+            },
+            {
+                $limit: 4,
+            },
+        ]),
+        booking_model_1.Booking.find()
+            .sort({ createdAt: -1 })
+            .limit(4)
+            .populate("user", "name")
+            .populate("tour", "title slug arrivalLocation divisionName")
+            .populate("payment", "status amount transactionId invoiceUrl")
+            .lean(),
+        booking_model_1.Booking.aggregate([
+            {
+                $match: {
+                    createdAt: { $gte: currentWindowStart, $lte: now },
+                },
+            },
+            {
+                $group: {
+                    _id: "$user",
+                },
+            },
+            {
+                $count: "totalUsers",
+            },
+        ]),
+        booking_model_1.Booking.aggregate([
+            {
+                $match: {
+                    createdAt: { $gte: previousWindowStart, $lt: currentWindowStart },
+                },
+            },
+            {
+                $group: {
+                    _id: "$user",
+                },
+            },
+            {
+                $count: "totalUsers",
+            },
+        ]),
+        review_model_1.Review.aggregate([
+            {
+                $match: {
+                    isDeleted: { $ne: true },
+                    createdAt: { $gte: currentWindowStart, $lte: now },
+                },
+            },
+            {
+                $project: {
+                    ratingScore: {
+                        $divide: [
+                            { $add: ["$guideRating", "$serviceRating", "$transportationRating", "$organizationRating"] },
+                            4,
+                        ],
+                    },
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    averageRating: { $avg: "$ratingScore" },
+                },
+            },
+        ]),
+        review_model_1.Review.aggregate([
+            {
+                $match: {
+                    isDeleted: { $ne: true },
+                    createdAt: { $gte: previousWindowStart, $lt: currentWindowStart },
+                },
+            },
+            {
+                $project: {
+                    ratingScore: {
+                        $divide: [
+                            { $add: ["$guideRating", "$serviceRating", "$transportationRating", "$organizationRating"] },
+                            4,
+                        ],
+                    },
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    averageRating: { $avg: "$ratingScore" },
+                },
+            },
+        ]),
+    ]);
+    const monthTrendMap = new Map(revenueTrend.map((item) => [String(item._id), { revenue: Number(item.revenue) || 0, bookings: Number(item.bookings) || 0 }]));
+    const recentTourIds = recentBookings
+        .map((booking) => { var _a; return String(booking.tour && typeof booking.tour === "object" ? (_a = booking.tour._id) !== null && _a !== void 0 ? _a : "" : ""); })
+        .filter(Boolean);
+    const recentReviewSummary = recentTourIds.length > 0
+        ? yield review_model_1.Review.aggregate([
+            {
+                $match: {
+                    tour: { $in: recentTourIds },
+                    isDeleted: { $ne: true },
+                },
+            },
+            {
+                $project: {
+                    ratingScore: {
+                        $divide: [
+                            { $add: ["$guideRating", "$serviceRating", "$transportationRating", "$organizationRating"] },
+                            4,
+                        ],
+                    },
+                    tour: 1,
+                },
+            },
+            {
+                $group: {
+                    _id: "$tour",
+                    averageRating: { $avg: "$ratingScore" },
+                },
+            },
+        ])
+        : [];
+    const reviewMap = new Map(recentReviewSummary.map((item) => [String(item._id), Number(Number(item.averageRating || 0).toFixed(1))]));
+    const totalRevenue = Number(((_a = revenueSummary[0]) === null || _a === void 0 ? void 0 : _a.totalRevenue) || 0);
+    const activeUsers = Number(((_b = activeUsersSummary[0]) === null || _b === void 0 ? void 0 : _b.totalActiveUsers) || 0);
+    const averageRating = Number(Number(((_c = reviewSummary[0]) === null || _c === void 0 ? void 0 : _c.averageRating) || 0).toFixed(1));
+    const currentUsers = Number(((_d = currentWindowUsers[0]) === null || _d === void 0 ? void 0 : _d.totalUsers) || 0);
+    const previousUsers = Number(((_e = previousWindowUsers[0]) === null || _e === void 0 ? void 0 : _e.totalUsers) || 0);
+    const currentAverageRating = Number(Number(((_f = currentWindowRatings[0]) === null || _f === void 0 ? void 0 : _f.averageRating) || 0).toFixed(1));
+    const previousAverageRating = Number(Number(((_g = previousWindowRatings[0]) === null || _g === void 0 ? void 0 : _g.averageRating) || 0).toFixed(1));
+    const revenueTrendValues = months.map((month) => {
+        const summary = monthTrendMap.get(month.key) || { revenue: 0, bookings: 0 };
+        return summary;
+    });
+    const latestRevenue = ((_h = revenueTrendValues[revenueTrendValues.length - 1]) === null || _h === void 0 ? void 0 : _h.revenue) || 0;
+    const previousRevenue = ((_j = revenueTrendValues[revenueTrendValues.length - 2]) === null || _j === void 0 ? void 0 : _j.revenue) || 0;
+    const latestBookings = ((_k = revenueTrendValues[revenueTrendValues.length - 1]) === null || _k === void 0 ? void 0 : _k.bookings) || 0;
+    const previousBookings = ((_l = revenueTrendValues[revenueTrendValues.length - 2]) === null || _l === void 0 ? void 0 : _l.bookings) || 0;
+    const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
+    const revenueData = months.map((month) => {
+        const summary = monthTrendMap.get(month.key) || { revenue: 0, bookings: 0 };
+        return {
+            month: month.label,
+            revenue: summary.revenue,
+            bookings: summary.bookings,
+        };
+    });
+    const destinationData = destinationBreakdown.map((item, index) => ({
+        name: String(item._id),
+        value: Number(item.value) || 0,
+        color: colors[index % colors.length],
+    }));
+    const formattedRecentBookings = recentBookings.map((booking) => {
+        var _a, _b, _c;
+        const tour = booking.tour || {};
+        const payment = booking.payment || {};
+        const destination = tour.arrivalLocation || tour.divisionName || tour.title || "N/A";
+        const userName = ((_a = booking.user) === null || _a === void 0 ? void 0 : _a.name) || "Guest";
+        return {
+            id: String(booking._id),
+            customer: userName,
+            destination,
+            amount: Number(payment.amount || 0),
+            status: String(booking.status || "PENDING"),
+            date: booking.createdAt || booking.date || new Date().toISOString(),
+            rating: (_c = reviewMap.get(String((_b = tour._id) !== null && _b !== void 0 ? _b : ""))) !== null && _c !== void 0 ? _c : null,
+        };
+    });
+    return {
+        stats: {
+            totalRevenue,
+            totalBookings,
+            activeUsers,
+            averageRating,
+        },
+        trend: {
+            revenueChange: getPercentageChange(latestRevenue, previousRevenue),
+            bookingsChange: getPercentageChange(latestBookings, previousBookings),
+            activeUsersChange: getPercentageChange(currentUsers, previousUsers),
+            averageRatingChange: getPercentageChange(currentAverageRating, previousAverageRating),
+        },
+        revenueData,
+        destinationData,
+        recentBookings: formattedRecentBookings,
+    };
+});
 exports.BookingService = {
     createBooking,
     getUserBookings,
     getBookingById,
     updateBookingStatus,
     getAllBookings,
+    getDashboardSummary,
     checkAvailability
 };

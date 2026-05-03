@@ -20,6 +20,8 @@ const tourBatchSchema = zod_1.z.object({
 });
 exports.createTourZodSchema = zod_1.z.object({
     title: zod_1.z.string(),
+    isDraft: zod_1.z.boolean().optional(),
+    isTrending: zod_1.z.boolean().optional(),
     description: zod_1.z.string().optional(),
     costFrom: zod_1.z.number().optional(),
     sellingPrice: zod_1.z.number().optional(),
@@ -42,6 +44,8 @@ exports.createTourZodSchema = zod_1.z.object({
 });
 exports.updateTourZodSchema = zod_1.z.object({
     title: zod_1.z.string().optional(),
+    isDraft: zod_1.z.boolean().optional(),
+    isTrending: zod_1.z.boolean().optional(),
     description: zod_1.z.string().optional(),
     costFrom: zod_1.z.number().optional(),
     sellingPrice: zod_1.z.number().optional(),

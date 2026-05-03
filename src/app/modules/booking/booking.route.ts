@@ -21,6 +21,11 @@ router.get("/",
     BookingController.getAllBookings
 );
 
+router.get("/dashboard-summary",
+    checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
+    BookingController.getDashboardSummary
+);
+
 // api/v1/booking/my-bookings
 router.get("/my-bookings",
     checkAuth(...Object.values(Role)),

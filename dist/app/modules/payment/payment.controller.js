@@ -55,6 +55,26 @@ const getInvoiceDownloadUrl = (0, catchAsync_1.catchAsync)((req, res) => __await
         data: result,
     });
 }));
+const getMyPayments = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const decodeToken = req.user;
+    const userId = decodeToken === null || decodeToken === void 0 ? void 0 : decodeToken.userId;
+    if (!userId) {
+        (0, sendResponse_1.sendResponse)(res, {
+            statusCode: 401,
+            success: false,
+            message: "Unauthorized",
+            data: null,
+        });
+        return;
+    }
+    const result = yield payment_service_1.PaymentService.getMyPayments(userId, req.query);
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: 200,
+        success: true,
+        message: "Payments retrieved successfully",
+        data: result,
+    });
+}));
 // const validatePayment = catchAsync(
 //     async (req: Request, res: Response) => {
 //         console.log("sslcommerz ipn url body", req.body);
@@ -72,5 +92,6 @@ exports.PaymentController = {
     successPayment,
     failPayment,
     cancelPayment,
-    getInvoiceDownloadUrl
+    getInvoiceDownloadUrl,
+    getMyPayments
 };

@@ -38,6 +38,82 @@ const getGatewayUrl = (sslPayment) => {
         ((_e = sslPayment === null || sslPayment === void 0 ? void 0 : sslPayment.data) === null || _e === void 0 ? void 0 : _e.paymentUrl) ||
         "");
 };
+const isDateOnlyString = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+const toLocalDateKey = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+const toUTCDateKey = (date) => {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+const getDateKeys = (value) => {
+    const keys = new Set();
+    if (typeof value === "string" && isDateOnlyString(value)) {
+        keys.add(value);
+    }
+    const dateValue = value instanceof Date ? value : new Date(value);
+    if (!Number.isNaN(dateValue.getTime())) {
+        keys.add(toLocalDateKey(dateValue));
+        keys.add(toUTCDateKey(dateValue));
+    }
+    return keys;
+};
+const formatDateKey = (value) => {
+    if (!value) {
+        return "";
+    }
+    const dateValue = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(dateValue.getTime())) {
+        return "";
+    }
+    return toLocalDateKey(dateValue);
+};
+const getMatchingTourBatch = (booking) => {
+    var _a, _b, _c;
+    const batches = (_b = (_a = booking === null || booking === void 0 ? void 0 : booking.tour) === null || _a === void 0 ? void 0 : _a.batches) !== null && _b !== void 0 ? _b : [];
+    if (!batches.length) {
+        return null;
+    }
+    const bookingDateKey = formatDateKey(booking === null || booking === void 0 ? void 0 : booking.date);
+    const matchedBatch = batches.find((batch) => formatDateKey(batch === null || batch === void 0 ? void 0 : batch.startDate) === bookingDateKey);
+    return (_c = matchedBatch !== null && matchedBatch !== void 0 ? matchedBatch : batches[0]) !== null && _c !== void 0 ? _c : null;
+};
+const isPaymentInDateRange = (createdAt, startDate, endDate) => {
+    if (!startDate && !endDate) {
+        return true;
+    }
+    const paymentDate = new Date(createdAt);
+    if (Number.isNaN(paymentDate.getTime())) {
+        return false;
+    }
+    // Single-day filter: compare by date keys to avoid timezone boundary mismatches.
+    if (startDate && endDate && startDate === endDate && isDateOnlyString(startDate)) {
+        const paymentDateKeys = getDateKeys(paymentDate);
+        return paymentDateKeys.has(startDate);
+    }
+    if (startDate) {
+        const startBoundary = isDateOnlyString(startDate)
+            ? new Date(`${startDate}T00:00:00`)
+            : new Date(startDate);
+        if (!Number.isNaN(startBoundary.getTime()) && paymentDate < startBoundary) {
+            return false;
+        }
+    }
+    if (endDate) {
+        const endBoundary = isDateOnlyString(endDate)
+            ? new Date(`${endDate}T23:59:59.999`)
+            : new Date(endDate);
+        if (!Number.isNaN(endBoundary.getTime()) && paymentDate > endBoundary) {
+            return false;
+        }
+    }
+    return true;
+};
 const initPayment = (bookingId) => __awaiter(void 0, void 0, void 0, function* () {
     const payment = yield payment_model_1.Payment.findOne({ booking: bookingId });
     if (!payment) {
@@ -204,10 +280,67 @@ const getInvoiceDownloadUrl = (paymentId) => __awaiter(void 0, void 0, void 0, f
     }
     return payment.invoiceUrl;
 });
+const getMyPayments = (userId, query) => __awaiter(void 0, void 0, void 0, function* () {
+    const page = parseInt(query.page) || 1;
+    const limit = parseInt(query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const bookingMatch = { user: userId };
+    const search = typeof query.search === "string" ? query.search.trim() : "";
+    const status = typeof query.status === "string" ? query.status.trim() : "";
+    const startDate = typeof query.startDate === "string" ? query.startDate.trim() : "";
+    const endDate = typeof query.endDate === "string" ? query.endDate.trim() : "";
+    const payments = yield payment_model_1.Payment.find()
+        .populate({
+        path: "booking",
+        match: bookingMatch,
+        populate: [
+            { path: "tour", select: "title slug batches" },
+        ],
+        select: "tour date guestCount user",
+    })
+        .sort({ createdAt: -1 });
+    const filteredPayments = payments.filter((payment) => {
+        var _a;
+        const booking = payment.booking;
+        if (!(booking === null || booking === void 0 ? void 0 : booking._id))
+            return false;
+        if (status && payment.status !== status)
+            return false;
+        if (search) {
+            const tourTitle = ((_a = booking === null || booking === void 0 ? void 0 : booking.tour) === null || _a === void 0 ? void 0 : _a.title) || "";
+            if (!tourTitle.toLowerCase().includes(search.toLowerCase()))
+                return false;
+        }
+        if (!isPaymentInDateRange(payment.createdAt, startDate, endDate)) {
+            return false;
+        }
+        return true;
+    });
+    const mappedPayments = filteredPayments.map((payment) => {
+        var _a, _b;
+        const paymentObj = payment.toObject();
+        const booking = paymentObj.booking;
+        const matchedBatch = getMatchingTourBatch(booking);
+        return Object.assign(Object.assign({}, paymentObj), { booking: Object.assign(Object.assign({}, booking), { batchNo: (_a = matchedBatch === null || matchedBatch === void 0 ? void 0 : matchedBatch.batchNo) !== null && _a !== void 0 ? _a : null }), batchNo: (_b = matchedBatch === null || matchedBatch === void 0 ? void 0 : matchedBatch.batchNo) !== null && _b !== void 0 ? _b : null });
+    });
+    const total = mappedPayments.length;
+    const totalPages = Math.ceil(total / limit);
+    const paginatedPayments = mappedPayments.slice(skip, skip + limit);
+    return {
+        result: paginatedPayments,
+        meta: {
+            page,
+            limit,
+            total,
+            totalPages,
+        },
+    };
+});
 exports.PaymentService = {
     initPayment,
     successPayment,
     failPayment,
     cancelPayment,
-    getInvoiceDownloadUrl
+    getInvoiceDownloadUrl,
+    getMyPayments
 };

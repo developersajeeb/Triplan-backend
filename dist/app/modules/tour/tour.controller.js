@@ -35,7 +35,9 @@ const getAllTours = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0,
     });
 }));
 const updateTour = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield tour_service_1.TourService.updateTour(req.params.id, req.body);
+    var _a;
+    const payload = Object.assign(Object.assign({}, req.body), { images: ((_a = req.files) === null || _a === void 0 ? void 0 : _a.map(file => file.path)) || [] });
+    const result = yield tour_service_1.TourService.updateTour(req.params.id, payload);
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: 200,
         success: true,

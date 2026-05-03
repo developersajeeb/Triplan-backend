@@ -57,6 +57,17 @@ const getAllBookings = catchAsync(
     }
 );
 
+const getDashboardSummary = catchAsync(async (req: Request, res: Response) => {
+    const result = await BookingService.getDashboardSummary();
+
+    sendResponse(res, {
+        statusCode: 200,
+        success: true,
+        message: "Dashboard summary retrieved successfully",
+        data: result,
+    });
+});
+
 const checkAvailability = catchAsync(async (req: Request, res: Response) => {    
   const result = await BookingService.checkAvailability(req.body);
 
@@ -85,6 +96,7 @@ const updateBookingStatus = catchAsync(
 export const BookingController = {
     createBooking,
     getAllBookings,
+    getDashboardSummary,
     getSingleBooking,
     getUserBookings,
     updateBookingStatus,

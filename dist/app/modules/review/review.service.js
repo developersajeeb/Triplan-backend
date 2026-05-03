@@ -157,8 +157,90 @@ const createReview = (payload, userId, files) => __awaiter(void 0, void 0, void 
     });
     return review;
 });
+const getMyReviews = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+    const reviews = yield review_model_1.Review.find({
+        user: userId,
+        isDeleted: { $ne: true },
+    })
+        .select("tourTitle tourSlug guideRating serviceRating transportationRating organizationRating comment images createdAt")
+        .sort({ createdAt: -1 });
+    return reviews.map((review) => {
+        const overallRating = Number(((review.guideRating +
+            review.serviceRating +
+            review.transportationRating +
+            review.organizationRating) /
+            4).toFixed(1));
+        return {
+            _id: String(review._id),
+            tourTitle: review.tourTitle,
+            tourSlug: review.tourSlug,
+            createdAt: review.createdAt ? review.createdAt.toISOString() : new Date().toISOString(),
+            guideRating: review.guideRating,
+            serviceRating: review.serviceRating,
+            transportationRating: review.transportationRating,
+            organizationRating: review.organizationRating,
+            comment: review.comment,
+            images: review.images || [],
+            overallRating,
+        };
+    });
+});
+const deleteMyReview = (reviewId, userId) => __awaiter(void 0, void 0, void 0, function* () {
+    const review = yield review_model_1.Review.findOne({
+        _id: reviewId,
+        user: userId,
+        isDeleted: { $ne: true },
+    }).select("_id");
+    if (!review) {
+        throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "Review not found.");
+    }
+    yield review_model_1.Review.findByIdAndUpdate(review._id, { isDeleted: true }, { new: true });
+    return {
+        _id: String(review._id),
+    };
+});
+const parseExistingImagesPayload = (existingImages) => {
+    if (!existingImages) {
+        return [];
+    }
+    if (Array.isArray(existingImages)) {
+        return existingImages.filter(Boolean);
+    }
+    try {
+        const parsed = JSON.parse(existingImages);
+        return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string" && item) : [];
+    }
+    catch (_error) {
+        return [];
+    }
+};
+const updateMyReview = (reviewId, userId, payload, files) => __awaiter(void 0, void 0, void 0, function* () {
+    const review = yield review_model_1.Review.findOne({
+        _id: reviewId,
+        user: userId,
+        isDeleted: { $ne: true },
+    });
+    if (!review) {
+        throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "Review not found.");
+    }
+    review.guideRating = payload.guideRating;
+    review.serviceRating = payload.serviceRating;
+    review.transportationRating = payload.transportationRating;
+    review.organizationRating = payload.organizationRating;
+    review.comment = payload.comment.trim();
+    review.tourSlug = payload.tourSlug;
+    review.tourTitle = payload.tourTitle;
+    const keptExistingImages = parseExistingImagesPayload(payload.existingImages).filter((image) => (review.images || []).includes(image));
+    const uploadedImages = yield uploadReviewImages(files);
+    review.images = [...keptExistingImages, ...uploadedImages].slice(0, 3);
+    yield review.save();
+    return review;
+});
 exports.ReviewService = {
     getTourReviews,
     getReviewEligibility,
     createReview,
+    getMyReviews,
+    deleteMyReview,
+    updateMyReview,
 };
