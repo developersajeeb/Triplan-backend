@@ -54,6 +54,52 @@ const getDateKeys = (value: string | Date) => {
 
 const normalizeText = (value?: string) => (value ?? "").trim().toLowerCase();
 
+const normalizePaymentStatus = (value?: string) => {
+  const normalized = normalizeText(value);
+
+  if (normalized === "paid") {
+    return "paid";
+  }
+
+  if (normalized === "unpaid" || normalized === "pending") {
+    return "unpaid";
+  }
+
+  if (normalized === "failed" || normalized === "fail") {
+    return "failed";
+  }
+
+  if (normalized === "cancel" || normalized === "cancelled") {
+    return "cancelled";
+  }
+
+  return normalized;
+};
+
+const getAdminBookingStatusLabel = (booking: TPopulatedBooking) => {
+  const baseStatus = normalizeText(String(booking.status ?? ""));
+
+  if (baseStatus.includes("cancel")) {
+    return "Cancelled";
+  }
+
+  if (baseStatus.includes("fail")) {
+    return "Failed";
+  }
+
+  if (baseStatus.includes("pending")) {
+    return "Pending";
+  }
+
+  const timelineStatus = getTimelineStatusLabel(booking);
+
+  if (timelineStatus === "Done") {
+    return "Completed";
+  }
+
+  return timelineStatus;
+};
+
 const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "short" });
 
 const getMonthKey = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -112,24 +158,41 @@ const formatDateKey = (value?: string | Date) => {
   return toLocalDateKey(dateValue);
 };
 
-const getTimelineStatusLabel = (booking: TPopulatedBooking) => {
-  const endDate = parseDate(
-    booking.tour?.endDate ??
-    booking.batches?.[0]?.endDate ??
-    booking.endDate ??
+const getTimelineStatusLabel = (booking: TPopulatedBooking): "Upcoming" | "Ongoing" | "Done" => {
+  const startDate = parseDate(
+    booking.batches?.[0]?.startDate ??
     booking.tour?.startDate ??
     booking.date
   );
 
-  if (!endDate) {
-    return "Upcoming";
-  }
+  const endDate = parseDate(
+    booking.batches?.[0]?.endDate ??
+    booking.tour?.endDate ??
+    booking.endDate
+  );
 
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+  const start = startDate
+    ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+    : null;
+  const end = endDate
+    ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+    : null;
 
-  return today > end ? "Done" : "Upcoming";
+  if (start && today < start) {
+    return "Upcoming";
+  }
+
+  if (end && today > end) {
+    return "Done";
+  }
+
+  if (start || end) {
+    return "Ongoing";
+  }
+
+  return "Upcoming";
 };
 
 const getSortableDate = (booking: TPopulatedBooking) => {
@@ -484,7 +547,22 @@ const getUserBookings = async (userId: string, query: TBookingQuery = {}) => {
   const statusFilter = normalizeText(query.status);
 
   const mapped = bookings
-    .map((booking) => buildBookingResponse(booking.toObject() as unknown as TPopulatedBooking))
+    .map((booking) => {
+      const response = buildBookingResponse(booking.toObject() as unknown as TPopulatedBooking);
+      const adminStatus = getAdminBookingStatusLabel(response as TPopulatedBooking);
+
+      return {
+        ...response,
+        bookingStatus: adminStatus,
+        batches: Array.isArray(response.batches)
+          ? response.batches.map((batch) => ({
+            ...batch,
+            status: adminStatus,
+            bookingStatus: adminStatus,
+          }))
+          : [],
+      };
+    })
     .filter((booking) => {
       const title = normalizeText(booking.tour?.title);
       const bookingStatus = normalizeText(booking.bookingStatus ?? booking.status);
@@ -495,7 +573,7 @@ const getUserBookings = async (userId: string, query: TBookingQuery = {}) => {
         ? ((statusFilter === "completed" || statusFilter === "done")
             ? bookingStatus.includes("done") || bookingStatus.includes("complete") || batchStatus.includes("done") || batchStatus.includes("complete")
             : statusFilter === "upcoming"
-              ? bookingStatus.includes("upcoming") || batchStatus.includes("upcoming")
+              ? bookingStatus.includes("upcoming") || batchStatus.includes("upcoming") || bookingStatus.includes("ongoing") || batchStatus.includes("ongoing")
               : bookingStatus === statusFilter || batchStatus === statusFilter)
         : true;
 
@@ -505,9 +583,16 @@ const getUserBookings = async (userId: string, query: TBookingQuery = {}) => {
   return mapped.sort((a, b) => {
     const statusA = normalizeText(a.bookingStatus);
     const statusB = normalizeText(b.bookingStatus);
+    const isActive = (status: string) => status.includes("upcoming") || status.includes("ongoing");
 
     if (statusA !== statusB) {
-      return statusA.includes("upcoming") ? -1 : 1;
+      if (isActive(statusA) && !isActive(statusB)) {
+        return -1;
+      }
+
+      if (!isActive(statusA) && isActive(statusB)) {
+        return 1;
+      }
     }
 
     const dateA = getSortableDate(a as TPopulatedBooking);
@@ -525,7 +610,7 @@ const getUserBookings = async (userId: string, query: TBookingQuery = {}) => {
       return -1;
     }
 
-    return statusA.includes("upcoming")
+    return isActive(statusA)
       ? dateA.getTime() - dateB.getTime()
       : dateB.getTime() - dateA.getTime();
   });
@@ -539,8 +624,135 @@ const updateBookingStatus = async () => {
   return {}
 };
 
-const getAllBookings = async () => {
-  return {}
+const getAllBookings = async (query: Record<string, string> = {}) => {
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.max(1, Number(query.limit) || 10);
+  const search = normalizeText(query.search);
+  const statusFilter = normalizeText(query.status);
+  const paymentStatusFilter = normalizeText(query.paymentStatus);
+  const sort = normalizeText(query.sort) || "newest";
+
+  const bookings = await Booking.find()
+    .populate("user", "name fullName firstName lastName email phone")
+    .populate("tour", "title slug images arrivalLocation startDate endDate batches")
+    .populate("payment", "status amount transactionId invoiceUrl")
+    .sort({ createdAt: -1 });
+
+  const mapped = bookings
+    .map((booking) => buildBookingResponse(booking.toObject() as unknown as TPopulatedBooking))
+    .filter((booking) => {
+      const user = booking.user as {
+        name?: string;
+        fullName?: string;
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+      } | undefined;
+
+      const customerName = normalizeText(
+        user?.name ||
+        user?.fullName ||
+        `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() ||
+        user?.email ||
+        ""
+      );
+      const tourTitle = normalizeText(booking.tour?.title);
+      const bookingStatus = normalizeText(String(booking.bookingStatus ?? booking.status));
+      const paymentStatus = normalizePaymentStatus(String(booking.payment?.status ?? booking.batches?.[0]?.payment?.status ?? ""));
+
+      const matchesSearch = search
+        ? customerName.includes(search) || tourTitle.includes(search)
+        : true;
+
+      const matchesStatus = (() => {
+        if (!statusFilter || statusFilter === "all") {
+          return true;
+        }
+
+        if (statusFilter === "completed" || statusFilter === "done") {
+          return bookingStatus === "completed" || bookingStatus === "done";
+        }
+
+        if (statusFilter === "upcoming") {
+          return bookingStatus === "upcoming";
+        }
+
+        if (statusFilter === "ongoing") {
+          return bookingStatus === "ongoing";
+        }
+
+        if (statusFilter === "pending") {
+          return bookingStatus === "pending";
+        }
+
+        if (statusFilter === "cancel" || statusFilter === "cancelled") {
+          return bookingStatus === "cancelled" || bookingStatus === "cancel";
+        }
+
+        if (statusFilter === "failed") {
+          return bookingStatus === "failed" || bookingStatus === "fail";
+        }
+
+        return bookingStatus === statusFilter;
+      })();
+
+      const matchesPaymentStatus = (() => {
+        if (!paymentStatusFilter || paymentStatusFilter === "all") {
+          return true;
+        }
+
+        const normalizedFilter = normalizePaymentStatus(paymentStatusFilter);
+
+        return paymentStatus === normalizedFilter;
+      })();
+
+      return matchesSearch && matchesStatus && matchesPaymentStatus;
+    })
+    .sort((a, b) => {
+      const amountA = Number(a.payment?.amount || a.batches?.[0]?.payment?.amount || 0);
+      const amountB = Number(b.payment?.amount || b.batches?.[0]?.payment?.amount || 0);
+      const createdA = new Date(a.createdAt ?? 0).getTime();
+      const createdB = new Date(b.createdAt ?? 0).getTime();
+
+      if (sort === "amounthightolow") {
+        if (amountA !== amountB) {
+          return amountB - amountA;
+        }
+
+        return createdB - createdA;
+      }
+
+      if (sort === "amountlowtohigh") {
+        if (amountA !== amountB) {
+          return amountA - amountB;
+        }
+
+        return createdB - createdA;
+      }
+
+      if (sort === "oldest") {
+        return createdA - createdB;
+      }
+
+      return createdB - createdA;
+    });
+
+  const total = mapped.length;
+  const totalPage = Math.max(1, Math.ceil(total / limit));
+  const startIndex = (page - 1) * limit;
+  const paginated = mapped.slice(startIndex, startIndex + limit);
+
+  return {
+    data: paginated,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPage,
+      totalPages: totalPage,
+      totalListing: total,
+    },
+  };
 };
 
 const getDashboardSummary = async () => {
