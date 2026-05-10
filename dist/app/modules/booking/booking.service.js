@@ -51,6 +51,40 @@ const getDateKeys = (value) => {
     return keys;
 };
 const normalizeText = (value) => (value !== null && value !== void 0 ? value : "").trim().toLowerCase();
+const normalizePaymentStatus = (value) => {
+    const normalized = normalizeText(value);
+    if (normalized === "paid") {
+        return "paid";
+    }
+    if (normalized === "unpaid" || normalized === "pending") {
+        return "unpaid";
+    }
+    if (normalized === "failed" || normalized === "fail") {
+        return "failed";
+    }
+    if (normalized === "cancel" || normalized === "cancelled") {
+        return "cancelled";
+    }
+    return normalized;
+};
+const getAdminBookingStatusLabel = (booking) => {
+    var _a;
+    const baseStatus = normalizeText(String((_a = booking.status) !== null && _a !== void 0 ? _a : ""));
+    if (baseStatus.includes("cancel")) {
+        return "Cancelled";
+    }
+    if (baseStatus.includes("fail")) {
+        return "Failed";
+    }
+    if (baseStatus.includes("pending")) {
+        return "Pending";
+    }
+    const timelineStatus = getTimelineStatusLabel(booking);
+    if (timelineStatus === "Done") {
+        return "Completed";
+    }
+    return timelineStatus;
+};
 const monthFormatter = new Intl.DateTimeFormat("en-US", { month: "short" });
 const getMonthKey = (date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
 const getMonthLabel = (monthKey) => {
@@ -94,15 +128,27 @@ const formatDateKey = (value) => {
     return toLocalDateKey(dateValue);
 };
 const getTimelineStatusLabel = (booking) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
-    const endDate = parseDate((_h = (_f = (_e = (_b = (_a = booking.tour) === null || _a === void 0 ? void 0 : _a.endDate) !== null && _b !== void 0 ? _b : (_d = (_c = booking.batches) === null || _c === void 0 ? void 0 : _c[0]) === null || _d === void 0 ? void 0 : _d.endDate) !== null && _e !== void 0 ? _e : booking.endDate) !== null && _f !== void 0 ? _f : (_g = booking.tour) === null || _g === void 0 ? void 0 : _g.startDate) !== null && _h !== void 0 ? _h : booking.date);
-    if (!endDate) {
-        return "Upcoming";
-    }
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+    const startDate = parseDate((_e = (_c = (_b = (_a = booking.batches) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.startDate) !== null && _c !== void 0 ? _c : (_d = booking.tour) === null || _d === void 0 ? void 0 : _d.startDate) !== null && _e !== void 0 ? _e : booking.date);
+    const endDate = parseDate((_k = (_h = (_g = (_f = booking.batches) === null || _f === void 0 ? void 0 : _f[0]) === null || _g === void 0 ? void 0 : _g.endDate) !== null && _h !== void 0 ? _h : (_j = booking.tour) === null || _j === void 0 ? void 0 : _j.endDate) !== null && _k !== void 0 ? _k : booking.endDate);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-    return today > end ? "Done" : "Upcoming";
+    const start = startDate
+        ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+        : null;
+    const end = endDate
+        ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+        : null;
+    if (start && today < start) {
+        return "Upcoming";
+    }
+    if (end && today > end) {
+        return "Done";
+    }
+    if (start || end) {
+        return "Ongoing";
+    }
+    return "Upcoming";
 };
 const getSortableDate = (booking) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j;
@@ -361,7 +407,13 @@ const getUserBookings = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ..
     const search = normalizeText(query.search);
     const statusFilter = normalizeText(query.status);
     const mapped = bookings
-        .map((booking) => buildBookingResponse(booking.toObject()))
+        .map((booking) => {
+        const response = buildBookingResponse(booking.toObject());
+        const adminStatus = getAdminBookingStatusLabel(response);
+        return Object.assign(Object.assign({}, response), { bookingStatus: adminStatus, batches: Array.isArray(response.batches)
+                ? response.batches.map((batch) => (Object.assign(Object.assign({}, batch), { status: adminStatus, bookingStatus: adminStatus })))
+                : [] });
+    })
         .filter((booking) => {
         var _a, _b, _c, _d, _e, _f, _g;
         const title = normalizeText((_a = booking.tour) === null || _a === void 0 ? void 0 : _a.title);
@@ -372,7 +424,7 @@ const getUserBookings = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ..
             ? ((statusFilter === "completed" || statusFilter === "done")
                 ? bookingStatus.includes("done") || bookingStatus.includes("complete") || batchStatus.includes("done") || batchStatus.includes("complete")
                 : statusFilter === "upcoming"
-                    ? bookingStatus.includes("upcoming") || batchStatus.includes("upcoming")
+                    ? bookingStatus.includes("upcoming") || batchStatus.includes("upcoming") || bookingStatus.includes("ongoing") || batchStatus.includes("ongoing")
                     : bookingStatus === statusFilter || batchStatus === statusFilter)
             : true;
         return matchesSearch && matchesStatus;
@@ -380,8 +432,14 @@ const getUserBookings = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ..
     return mapped.sort((a, b) => {
         const statusA = normalizeText(a.bookingStatus);
         const statusB = normalizeText(b.bookingStatus);
+        const isActive = (status) => status.includes("upcoming") || status.includes("ongoing");
         if (statusA !== statusB) {
-            return statusA.includes("upcoming") ? -1 : 1;
+            if (isActive(statusA) && !isActive(statusB)) {
+                return -1;
+            }
+            if (!isActive(statusA) && isActive(statusB)) {
+                return 1;
+            }
         }
         const dateA = getSortableDate(a);
         const dateB = getSortableDate(b);
@@ -394,7 +452,7 @@ const getUserBookings = (userId_1, ...args_1) => __awaiter(void 0, [userId_1, ..
         if (!dateB) {
             return -1;
         }
-        return statusA.includes("upcoming")
+        return isActive(statusA)
             ? dateA.getTime() - dateB.getTime()
             : dateB.getTime() - dateA.getTime();
     });
@@ -405,8 +463,105 @@ const getBookingById = () => __awaiter(void 0, void 0, void 0, function* () {
 const updateBookingStatus = () => __awaiter(void 0, void 0, void 0, function* () {
     return {};
 });
-const getAllBookings = () => __awaiter(void 0, void 0, void 0, function* () {
-    return {};
+const getAllBookings = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (query = {}) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.max(1, Number(query.limit) || 10);
+    const search = normalizeText(query.search);
+    const statusFilter = normalizeText(query.status);
+    const paymentStatusFilter = normalizeText(query.paymentStatus);
+    const sort = normalizeText(query.sort) || "newest";
+    const bookings = yield booking_model_1.Booking.find()
+        .populate("user", "name fullName firstName lastName email phone")
+        .populate("tour", "title slug images arrivalLocation startDate endDate batches")
+        .populate("payment", "status amount transactionId invoiceUrl")
+        .sort({ createdAt: -1 });
+    const mapped = bookings
+        .map((booking) => buildBookingResponse(booking.toObject()))
+        .filter((booking) => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+        const user = booking.user;
+        const customerName = normalizeText((user === null || user === void 0 ? void 0 : user.name) ||
+            (user === null || user === void 0 ? void 0 : user.fullName) ||
+            `${(_a = user === null || user === void 0 ? void 0 : user.firstName) !== null && _a !== void 0 ? _a : ""} ${(_b = user === null || user === void 0 ? void 0 : user.lastName) !== null && _b !== void 0 ? _b : ""}`.trim() ||
+            (user === null || user === void 0 ? void 0 : user.email) ||
+            "");
+        const tourTitle = normalizeText((_c = booking.tour) === null || _c === void 0 ? void 0 : _c.title);
+        const bookingStatus = normalizeText(String((_d = booking.bookingStatus) !== null && _d !== void 0 ? _d : booking.status));
+        const paymentStatus = normalizePaymentStatus(String((_k = (_f = (_e = booking.payment) === null || _e === void 0 ? void 0 : _e.status) !== null && _f !== void 0 ? _f : (_j = (_h = (_g = booking.batches) === null || _g === void 0 ? void 0 : _g[0]) === null || _h === void 0 ? void 0 : _h.payment) === null || _j === void 0 ? void 0 : _j.status) !== null && _k !== void 0 ? _k : ""));
+        const matchesSearch = search
+            ? customerName.includes(search) || tourTitle.includes(search)
+            : true;
+        const matchesStatus = (() => {
+            if (!statusFilter || statusFilter === "all") {
+                return true;
+            }
+            if (statusFilter === "completed" || statusFilter === "done") {
+                return bookingStatus === "completed" || bookingStatus === "done";
+            }
+            if (statusFilter === "upcoming") {
+                return bookingStatus === "upcoming";
+            }
+            if (statusFilter === "ongoing") {
+                return bookingStatus === "ongoing";
+            }
+            if (statusFilter === "pending") {
+                return bookingStatus === "pending";
+            }
+            if (statusFilter === "cancel" || statusFilter === "cancelled") {
+                return bookingStatus === "cancelled" || bookingStatus === "cancel";
+            }
+            if (statusFilter === "failed") {
+                return bookingStatus === "failed" || bookingStatus === "fail";
+            }
+            return bookingStatus === statusFilter;
+        })();
+        const matchesPaymentStatus = (() => {
+            if (!paymentStatusFilter || paymentStatusFilter === "all") {
+                return true;
+            }
+            const normalizedFilter = normalizePaymentStatus(paymentStatusFilter);
+            return paymentStatus === normalizedFilter;
+        })();
+        return matchesSearch && matchesStatus && matchesPaymentStatus;
+    })
+        .sort((a, b) => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+        const amountA = Number(((_a = a.payment) === null || _a === void 0 ? void 0 : _a.amount) || ((_d = (_c = (_b = a.batches) === null || _b === void 0 ? void 0 : _b[0]) === null || _c === void 0 ? void 0 : _c.payment) === null || _d === void 0 ? void 0 : _d.amount) || 0);
+        const amountB = Number(((_e = b.payment) === null || _e === void 0 ? void 0 : _e.amount) || ((_h = (_g = (_f = b.batches) === null || _f === void 0 ? void 0 : _f[0]) === null || _g === void 0 ? void 0 : _g.payment) === null || _h === void 0 ? void 0 : _h.amount) || 0);
+        const createdA = new Date((_j = a.createdAt) !== null && _j !== void 0 ? _j : 0).getTime();
+        const createdB = new Date((_k = b.createdAt) !== null && _k !== void 0 ? _k : 0).getTime();
+        if (sort === "amounthightolow") {
+            if (amountA !== amountB) {
+                return amountB - amountA;
+            }
+            return createdB - createdA;
+        }
+        if (sort === "amountlowtohigh") {
+            if (amountA !== amountB) {
+                return amountA - amountB;
+            }
+            return createdB - createdA;
+        }
+        if (sort === "oldest") {
+            return createdA - createdB;
+        }
+        return createdB - createdA;
+    });
+    const total = mapped.length;
+    const totalPage = Math.max(1, Math.ceil(total / limit));
+    const startIndex = (page - 1) * limit;
+    const paginated = mapped.slice(startIndex, startIndex + limit);
+    return {
+        data: paginated,
+        meta: {
+            page,
+            limit,
+            total,
+            totalPage,
+            totalPages: totalPage,
+            totalListing: total,
+        },
+    };
 });
 const getDashboardSummary = () => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
@@ -698,7 +853,7 @@ const getDashboardSummary = () => __awaiter(void 0, void 0, void 0, function* ()
         color: colors[index % colors.length],
     }));
     const formattedRecentBookings = recentBookings.map((booking) => {
-        var _a, _b, _c;
+        var _a;
         const tour = booking.tour || {};
         const payment = booking.payment || {};
         const destination = tour.arrivalLocation || tour.divisionName || tour.title || "N/A";
@@ -710,7 +865,7 @@ const getDashboardSummary = () => __awaiter(void 0, void 0, void 0, function* ()
             amount: Number(payment.amount || 0),
             status: String(booking.status || "PENDING"),
             date: booking.createdAt || booking.date || new Date().toISOString(),
-            rating: (_c = reviewMap.get(String((_b = tour._id) !== null && _b !== void 0 ? _b : ""))) !== null && _c !== void 0 ? _c : null,
+            guestCount: Number(booking.guestCount || 0),
         };
     });
     return {

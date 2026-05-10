@@ -18,6 +18,9 @@ router.get("/eligibility/:tourId", checkAuth(Role.USER), ReviewController.getRev
 // api/v1/review/my-reviews
 router.get("/my-reviews", checkAuth(Role.USER), ReviewController.getMyReviews);
 
+// api/v1/review/admin
+router.get("/admin", checkAuth(Role.ADMIN, Role.SUPER_ADMIN), ReviewController.getAdminReviews);
+
 // api/v1/review
 router.post(
   "/",
@@ -30,6 +33,9 @@ router.post(
 // api/v1/review/:reviewId
 router.delete("/:reviewId", checkAuth(Role.USER), ReviewController.deleteMyReview);
 
+// api/v1/review/admin/:reviewId
+router.delete("/admin/:reviewId", checkAuth(Role.ADMIN, Role.SUPER_ADMIN), ReviewController.deleteReviewByAdmin);
+
 // api/v1/review/:reviewId
 router.patch(
   "/:reviewId",
@@ -37,6 +43,15 @@ router.patch(
   upload.array("images", 3),
   validateRequest(updateReviewZodSchema),
   ReviewController.updateMyReview
+);
+
+// api/v1/review/admin/:reviewId
+router.patch(
+  "/admin/:reviewId",
+  checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
+  upload.array("images", 3),
+  validateRequest(updateReviewZodSchema),
+  ReviewController.updateReviewByAdmin
 );
 
 export const ReviewRoutes = router;

@@ -428,6 +428,10 @@ const updateTourType = (id, payload) => __awaiter(void 0, void 0, void 0, functi
         throw new Error("Tour type not found.");
     }
     const updatedTourType = yield tour_model_1.TourType.findByIdAndUpdate(id, payload, { new: true });
+    // Update all tours that reference this tour type with the new name
+    if (updatedTourType && payload.name && payload.name !== existingTourType.name) {
+        yield tour_model_1.Tour.updateMany({ tourType: id }, { tourTypeName: updatedTourType.name });
+    }
     return updatedTourType;
 });
 const deleteTourType = (id) => __awaiter(void 0, void 0, void 0, function* () {

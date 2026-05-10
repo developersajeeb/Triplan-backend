@@ -518,6 +518,15 @@ const updateTourType = async (id: string, payload: ITourType) => {
     }
 
     const updatedTourType = await TourType.findByIdAndUpdate(id, payload, { new: true });
+    
+    // Update all tours that reference this tour type with the new name
+    if (updatedTourType && payload.name && payload.name !== existingTourType.name) {
+        await Tour.updateMany(
+            { tourType: id },
+            { tourTypeName: updatedTourType.name }
+        );
+    }
+    
     return updatedTourType;
 };
 

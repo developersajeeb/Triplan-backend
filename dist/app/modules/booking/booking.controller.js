@@ -46,14 +46,13 @@ const getSingleBooking = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(vo
     });
 }));
 const getAllBookings = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const bookings = yield booking_service_1.BookingService.getAllBookings();
+    const bookings = yield booking_service_1.BookingService.getAllBookings(req.query);
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: 200,
         success: true,
         message: "Bookings retrieved successfully",
-        data: {},
-        // meta: {},
+        data: bookings.data,
+        meta: bookings.meta,
     });
 }));
 const getDashboardSummary = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {

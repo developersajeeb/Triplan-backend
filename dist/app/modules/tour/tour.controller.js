@@ -88,7 +88,8 @@ const createTourType = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void
 const updateTourType = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     const { name } = req.body;
-    const result = yield tour_service_1.TourService.updateTourType(id, name);
+    // pass an object payload to match service expectations
+    const result = yield tour_service_1.TourService.updateTourType(id, { name });
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: 200,
         success: true,

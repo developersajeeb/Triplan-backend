@@ -9,7 +9,7 @@ const createDivision = async (payload: IDivision) => {
 
     const existingDivision = await Division.findOne({ name: payload.name });
     if (existingDivision) {
-        throw new Error("A division with this name already exists.");
+        throw new Error("A destination with this name already exists.");
     }
 
     const division = await Division.create(payload);
@@ -67,7 +67,7 @@ const updateDivision = async (id: string, payload: Partial<IDivision>) => {
 
     const existingDivision = await Division.findById(id);
     if (!existingDivision) {
-        throw new Error("Division not found.");
+        throw new Error("Destination not found.");
     }
 
     const duplicateDivision = await Division.findOne({
@@ -76,10 +76,17 @@ const updateDivision = async (id: string, payload: Partial<IDivision>) => {
     });
 
     if (duplicateDivision) {
-        throw new Error("A division with this name already exists.");
+        throw new Error("A destination with this name already exists.");
     }
 
     const updatedDivision = await Division.findByIdAndUpdate(id, payload, { new: true, runValidators: true })
+
+    if (updatedDivision && payload.name && payload.name !== existingDivision.name) {
+        await Tour.updateMany(
+            { division: id },
+            { divisionName: updatedDivision.name }
+        );
+    }
 
     if (payload.thumbnail && existingDivision.thumbnail) {
         await deleteImageFromCLoudinary(existingDivision.thumbnail)

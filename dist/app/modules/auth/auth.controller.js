@@ -34,6 +34,7 @@ const userTokens_1 = require("../../utils/userTokens");
 const env_1 = require("../../config/env");
 const passport_1 = __importDefault(require("passport"));
 const user_model_1 = require("../user/user.model");
+const setCookie_2 = require("../../utils/setCookie");
 const credentialsLogin = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     passport_1.default.authenticate("local", (err, user, info) => __awaiter(void 0, void 0, void 0, function* () {
         if (err) {
@@ -98,22 +99,12 @@ const setPassword = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(v
     });
 }));
 const logout = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    res.clearCookie("accessToken", {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
-    });
-    res.clearCookie("refreshToken", {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
-    });
+    res.clearCookie("accessToken", Object.assign({}, setCookie_2.AUTH_COOKIE_BASE_OPTIONS));
+    res.clearCookie("refreshToken", Object.assign({}, setCookie_2.AUTH_COOKIE_BASE_OPTIONS));
     res.clearCookie("connect.sid", {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: env_1.envVars.NODE_ENV === "production",
+        sameSite: env_1.envVars.NODE_ENV === "production" ? "none" : "lax",
         path: "/",
     });
     (0, sendResponse_1.sendResponse)(res, {

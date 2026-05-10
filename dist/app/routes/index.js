@@ -10,6 +10,7 @@ const booking_route_1 = require("../modules/booking/booking.route");
 const payment_route_1 = require("../modules/payment/payment.route");
 const otp_routes_1 = require("../modules/otp/otp.routes");
 const review_route_1 = require("../modules/review/review.route");
+const enquiry_route_1 = require("../modules/enquiry/enquiry.route");
 exports.router = (0, express_1.Router)();
 const moduleRoutes = [
     {
@@ -43,6 +44,10 @@ const moduleRoutes = [
     {
         path: "/review",
         route: review_route_1.ReviewRoutes
+    },
+    {
+        path: "/enquiry",
+        route: enquiry_route_1.EnquiryRoutes
     },
     // {
     //     path: "/stats",

@@ -63,3 +63,26 @@ export interface IMyReview {
   images: string[];
   overallRating: number;
 }
+
+export interface IAdminReviewItem {
+  _id: string;
+  tourTitle: string;
+  tourSlug: string;
+  createdAt: string;
+  userName: string;
+  userEmail: string;
+  guideRating: number;
+  serviceRating: number;
+  transportationRating: number;
+  organizationRating: number;
+  comment: string;
+  images: string[];
+  overallRating: number;
+}
+
+export interface IAdminReviewQuery {
+  page?: string;
+  limit?: string;
+  search?: string;
+  sort?: string;
+}

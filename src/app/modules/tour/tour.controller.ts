@@ -87,7 +87,8 @@ const createTourType = catchAsync(async (req: Request, res: Response) => {
 const updateTourType = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
     const { name } = req.body;
-    const result = await TourService.updateTourType(id, name);
+    // pass an object payload to match service expectations
+    const result = await TourService.updateTourType(id, { name } as any);
     sendResponse(res, {
         statusCode: 200,
         success: true,

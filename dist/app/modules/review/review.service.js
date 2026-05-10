@@ -214,10 +214,109 @@ const parseExistingImagesPayload = (existingImages) => {
         return [];
     }
 };
+const normalizeSearch = (value) => (value !== null && value !== void 0 ? value : "").trim().toLowerCase();
+const getOverallRating = (review) => {
+    return Number(((review.guideRating +
+        review.serviceRating +
+        review.transportationRating +
+        review.organizationRating) /
+        4).toFixed(1));
+};
+const getAdminReviews = (...args_1) => __awaiter(void 0, [...args_1], void 0, function* (query = {}) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.max(1, Number(query.limit) || 10);
+    const search = normalizeSearch(query.search);
+    const sort = normalizeSearch(query.sort) || "newest";
+    const reviews = yield review_model_1.Review.find({ isDeleted: { $ne: true } })
+        .populate("user", "name email")
+        .sort({ createdAt: -1 });
+    const mapped = reviews
+        .map((review) => {
+        const user = review.user;
+        return {
+            _id: String(review._id),
+            tourTitle: review.tourTitle,
+            tourSlug: review.tourSlug,
+            createdAt: review.createdAt ? review.createdAt.toISOString() : new Date().toISOString(),
+            userName: (user === null || user === void 0 ? void 0 : user.name) || "Guest User",
+            userEmail: (user === null || user === void 0 ? void 0 : user.email) || "N/A",
+            guideRating: review.guideRating,
+            serviceRating: review.serviceRating,
+            transportationRating: review.transportationRating,
+            organizationRating: review.organizationRating,
+            comment: review.comment,
+            images: review.images || [],
+            overallRating: getOverallRating(review),
+        };
+    })
+        .filter((review) => {
+        if (!search) {
+            return true;
+        }
+        return (normalizeSearch(review.userName).includes(search) ||
+            normalizeSearch(review.userEmail).includes(search));
+    })
+        .sort((a, b) => {
+        const createdA = new Date(a.createdAt).getTime();
+        const createdB = new Date(b.createdAt).getTime();
+        if (sort === "oldest") {
+            return createdA - createdB;
+        }
+        return createdB - createdA;
+    });
+    const total = mapped.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const startIndex = (page - 1) * limit;
+    return {
+        data: mapped.slice(startIndex, startIndex + limit),
+        meta: {
+            page,
+            limit,
+            total,
+            totalPage: totalPages,
+            totalPages,
+            totalListing: total,
+        },
+    };
+});
+const deleteReviewByAdmin = (reviewId) => __awaiter(void 0, void 0, void 0, function* () {
+    const review = yield review_model_1.Review.findOne({
+        _id: reviewId,
+        isDeleted: { $ne: true },
+    }).select("_id");
+    if (!review) {
+        throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "Review not found.");
+    }
+    yield review_model_1.Review.findByIdAndUpdate(review._id, { isDeleted: true }, { new: true });
+    return {
+        _id: String(review._id),
+    };
+});
 const updateMyReview = (reviewId, userId, payload, files) => __awaiter(void 0, void 0, void 0, function* () {
     const review = yield review_model_1.Review.findOne({
         _id: reviewId,
         user: userId,
+        isDeleted: { $ne: true },
+    });
+    if (!review) {
+        throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "Review not found.");
+    }
+    review.guideRating = payload.guideRating;
+    review.serviceRating = payload.serviceRating;
+    review.transportationRating = payload.transportationRating;
+    review.organizationRating = payload.organizationRating;
+    review.comment = payload.comment.trim();
+    review.tourSlug = payload.tourSlug;
+    review.tourTitle = payload.tourTitle;
+    const keptExistingImages = parseExistingImagesPayload(payload.existingImages).filter((image) => (review.images || []).includes(image));
+    const uploadedImages = yield uploadReviewImages(files);
+    review.images = [...keptExistingImages, ...uploadedImages].slice(0, 3);
+    yield review.save();
+    return review;
+});
+const updateReviewByAdmin = (reviewId, payload, files) => __awaiter(void 0, void 0, void 0, function* () {
+    const review = yield review_model_1.Review.findOne({
+        _id: reviewId,
         isDeleted: { $ne: true },
     });
     if (!review) {
@@ -243,4 +342,7 @@ exports.ReviewService = {
     getMyReviews,
     deleteMyReview,
     updateMyReview,
+    getAdminReviews,
+    deleteReviewByAdmin,
+    updateReviewByAdmin,
 };

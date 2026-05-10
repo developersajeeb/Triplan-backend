@@ -13,6 +13,7 @@ import { envVars } from "../../config/env"
 import passport from "passport"
 import { User } from "../user/user.model"
 import { IUser } from "../user/user.interface"
+import { AUTH_COOKIE_BASE_OPTIONS } from "../../utils/setCookie"
 
 const credentialsLogin = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
     passport.authenticate("local", async (err: any, user: any, info: any) => {
@@ -98,23 +99,17 @@ const setPassword = catchAsync(async (req: Request, res: Response, next: NextFun
 const logout = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
 
     res.clearCookie("accessToken", {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
+        ...AUTH_COOKIE_BASE_OPTIONS,
     });
 
     res.clearCookie("refreshToken", {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
+        ...AUTH_COOKIE_BASE_OPTIONS,
     });
 
     res.clearCookie("connect.sid", {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: envVars.NODE_ENV === "production",
+        sameSite: envVars.NODE_ENV === "production" ? "none" : "lax",
         path: "/",
     });
 

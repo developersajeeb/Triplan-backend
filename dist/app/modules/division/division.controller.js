@@ -20,7 +20,7 @@ const createDivision = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: 201,
         success: true,
-        message: "Division created",
+        message: "Destination created",
         data: result,
     });
 }));
@@ -30,7 +30,7 @@ const getAllDivisions = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(voi
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: 200,
         success: true,
-        message: "Divisions retrieved",
+        message: "Destinations retrieved",
         data: result.data,
         meta: result.meta,
     });
@@ -41,19 +41,19 @@ const getSingleDivision = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(v
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: 200,
         success: true,
-        message: "Divisions retrieved",
+        message: "Destination retrieved",
         data: result.data,
     });
 }));
 const updateDivision = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     const id = req.params.id;
-    const payload = Object.assign(Object.assign({}, req.body), { thumbnail: (_a = req.file) === null || _a === void 0 ? void 0 : _a.path });
+    const payload = Object.assign(Object.assign({}, req.body), (((_a = req.file) === null || _a === void 0 ? void 0 : _a.path) ? { thumbnail: req.file.path } : {}));
     const result = yield division_service_1.DivisionService.updateDivision(id, payload);
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: 200,
         success: true,
-        message: "Division updated",
+        message: "Destination updated",
         data: result,
     });
 }));
@@ -62,7 +62,7 @@ const deleteDivision = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: 200,
         success: true,
-        message: "Division deleted",
+        message: "Destination deleted",
         data: result,
     });
 }));

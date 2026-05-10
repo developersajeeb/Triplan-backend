@@ -55,10 +55,30 @@ const getMyReviews = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0
         data: result,
     });
 }));
+const getAdminReviews = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield review_service_1.ReviewService.getAdminReviews(req.query);
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: 200,
+        success: true,
+        message: "Admin reviews retrieved successfully",
+        data: result.data,
+        meta: result.meta,
+    });
+}));
 const deleteMyReview = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const decodeToken = req.user;
     const { reviewId } = req.params;
     const result = yield review_service_1.ReviewService.deleteMyReview(reviewId, decodeToken.userId);
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: 200,
+        success: true,
+        message: "Review deleted successfully",
+        data: result,
+    });
+}));
+const deleteReviewByAdmin = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { reviewId } = req.params;
+    const result = yield review_service_1.ReviewService.deleteReviewByAdmin(reviewId);
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: 200,
         success: true,
@@ -78,11 +98,25 @@ const updateMyReview = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void
         data: result,
     });
 }));
+const updateReviewByAdmin = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { reviewId } = req.params;
+    const files = req.files || [];
+    const result = yield review_service_1.ReviewService.updateReviewByAdmin(reviewId, req.body, files);
+    (0, sendResponse_1.sendResponse)(res, {
+        statusCode: 200,
+        success: true,
+        message: "Review updated successfully",
+        data: result,
+    });
+}));
 exports.ReviewController = {
     getTourReviews,
     getReviewEligibility,
     createReview,
     getMyReviews,
+    getAdminReviews,
     deleteMyReview,
+    deleteReviewByAdmin,
     updateMyReview,
+    updateReviewByAdmin,
 };

@@ -1072,7 +1072,7 @@ const getDashboardSummary = async () => {
       amount: Number(payment.amount || 0),
       status: String(booking.status || "PENDING"),
       date: booking.createdAt || booking.date || new Date().toISOString(),
-      rating: reviewMap.get(String(tour._id ?? "")) ?? null,
+      guestCount: Number(booking.guestCount || 0),
     };
   });
 

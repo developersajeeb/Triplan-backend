@@ -13,7 +13,7 @@ const createDivision = catchAsync(async (req: Request, res: Response) => {
     sendResponse(res, {
         statusCode: 201,
         success: true,
-        message: "Division created",
+        message: "Destination created",
         data: result,
     });
 });
@@ -24,7 +24,7 @@ const getAllDivisions = catchAsync(async (req: Request, res: Response) => {
     sendResponse(res, {
         statusCode: 200,
         success: true,
-        message: "Divisions retrieved",
+        message: "Destinations retrieved",
         data: result.data,
         meta: result.meta,
     });
@@ -36,7 +36,7 @@ const getSingleDivision = catchAsync(async (req: Request, res: Response) => {
     sendResponse(res, {
         statusCode: 200,
         success: true,
-        message: "Divisions retrieved",
+        message: "Destination retrieved",
         data: result.data,
     });
 });
@@ -45,13 +45,13 @@ const updateDivision = catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id;
     const payload: IDivision = {
         ...req.body,
-        thumbnail: req.file?.path
+        ...(req.file?.path ? { thumbnail: req.file.path } : {})
     }
     const result = await DivisionService.updateDivision(id, payload);
     sendResponse(res, {
         statusCode: 200,
         success: true,
-        message: "Division updated",
+        message: "Destination updated",
         data: result,
     });
 });
@@ -61,7 +61,7 @@ const deleteDivision = catchAsync(async (req: Request, res: Response) => {
     sendResponse(res, {
         statusCode: 200,
         success: true,
-        message: "Division deleted",
+        message: "Destination deleted",
         data: result,
     });
 });
