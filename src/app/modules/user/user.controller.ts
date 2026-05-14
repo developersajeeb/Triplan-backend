@@ -34,6 +34,22 @@ const updateUserController = catchAsync(async (req: Request, res: Response, next
     })
 });
 
+  const updateUserByAdminController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = req.user as JwtPayload;
+    const payload = {
+      ...req.body,
+      picture: req.file?.path,
+    };
+    const user = await UserServices.updateUserService(req.params.id, payload, decodedToken);
+
+    sendResponse(res, {
+      success: true,
+      statusCode: httpStatus.CREATED,
+      message: "User Updated Successfully",
+      data: user,
+    });
+  });
+
 const getAllUsers = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const query = req.query;
     const result = await UserServices.getAllUsers(query as Record<string, string>);
@@ -69,6 +85,18 @@ const getSingleUser = catchAsync(async (req: Request, res: Response, next: NextF
         data: result.data
     })
 });
+
+  const deleteUserController = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = req.user as JwtPayload;
+    const result = await UserServices.deleteUserService(req.params.id, decodedToken);
+
+    sendResponse(res, {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "User deleted successfully",
+      data: result.data,
+    });
+  });
 
 const toggleWishlist = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -109,6 +137,8 @@ export const UserControllers = {
     getAllUsers,
     getSingleUser,
     updateUserController,
+  updateUserByAdminController,
+  deleteUserController,
     getMe,
     toggleWishlist,
     getWishlist,

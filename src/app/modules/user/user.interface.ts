@@ -29,7 +29,7 @@ export interface IUser {
     country?: string,
     city?: string,
     post_code?: string,
-    isDeleted?: string;
+    isDeleted?: boolean;
     isActive?: IsActive;
     isVerified?: boolean;
     role: Role;

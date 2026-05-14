@@ -8,6 +8,8 @@ import { userSearchableFields } from "./user.constant";
 import { IAuthProvider, IUser, Role } from "./user.interface";
 import { User } from "./user.model";
 import { Types } from "mongoose";
+import { Booking } from "../booking/booking.model";
+import { PAYMENT_STATUS } from "../payment/payment.interface";
 
 const WISHLIST_LIMIT = 50;
 const WISHLIST_POPULATE_FIELDS =
@@ -72,6 +74,22 @@ const updateUserService = async (userId: string, payload: Partial<IUser>, decode
         throw new AppError(httpStatus.NOT_FOUND, "User Not Found")
     }
 
+    if (payload.email && payload.email !== ifUserExist.email) {
+        const existingEmailUser = await User.findOne({ email: payload.email, _id: { $ne: userId } });
+
+        if (existingEmailUser) {
+            throw new AppError(httpStatus.BAD_REQUEST, "User Already Exist with this email.");
+        }
+    }
+
+    if (payload.phone && payload.phone !== ifUserExist.phone) {
+        const existingPhoneUser = await User.findOne({ phone: payload.phone, _id: { $ne: userId } });
+
+        if (existingPhoneUser) {
+            throw new AppError(httpStatus.BAD_REQUEST, "User Already Exist with this phone number.");
+        }
+    }
+
     if (payload.role) {
         if (decodedToken.role === Role.USER || decodedToken.role === Role.GUIDE) {
             throw new AppError(httpStatus.FORBIDDEN, "You are not authorized");
@@ -99,7 +117,15 @@ const updateUserService = async (userId: string, payload: Partial<IUser>, decode
 }
 
 const getAllUsers = async (query: Record<string, string>) => {
-    const queryBuilder = new QueryBuilder(User.find(), query)
+    const normalizedQuery = { ...query };
+
+    if (normalizedQuery.status && normalizedQuery.status !== "all") {
+        normalizedQuery.isActive = normalizedQuery.status;
+    }
+
+    delete normalizedQuery.status;
+
+    const queryBuilder = new QueryBuilder(User.find({ isDeleted: { $ne: true } }).select("-password"), normalizedQuery)
     const usersData = queryBuilder
         .filter()
         .search(userSearchableFields)
@@ -112,9 +138,74 @@ const getAllUsers = async (query: Record<string, string>) => {
         queryBuilder.getMeta()
     ])
 
+    const userIds = data.map((user) => user._id).filter(Boolean);
+
+    const bookingStats = userIds.length > 0
+        ? await Booking.aggregate([
+            { $match: { user: { $in: userIds } } },
+            {
+                $lookup: {
+                    from: "payments",
+                    localField: "_id",
+                    foreignField: "booking",
+                    as: "payment",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$payment",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $group: {
+                    _id: "$user",
+                    bookingsCount: { $sum: 1 },
+                    toursBooked: { $addToSet: "$tour" },
+                    totalSpent: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$payment.status", PAYMENT_STATUS.PAID] },
+                                { $ifNull: ["$payment.amount", 0] },
+                                0,
+                            ],
+                        },
+                    },
+                    lastBookingAt: { $max: "$createdAt" },
+                },
+            },
+        ])
+        : [];
+
+    const statsMap = new Map<string, { bookingsCount: number; totalSpent: number; lastBookingAt?: Date | string }>();
+
+    bookingStats.forEach((item) => {
+        statsMap.set(String(item._id), {
+            bookingsCount: Number(item.bookingsCount ?? 0),
+            toursBookedCount: Array.isArray(item.toursBooked) ? item.toursBooked.length : Number(item.bookingsCount ?? 0),
+            totalSpent: Number(item.totalSpent ?? 0),
+            lastBookingAt: item.lastBookingAt,
+        });
+    });
+
+    const enrichedData = data.map((user) => {
+        const stats = statsMap.get(String(user._id)) ?? { bookingsCount: 0, toursBookedCount: 0, totalSpent: 0 };
+
+        return {
+            ...user.toObject(),
+            bookingsCount: stats.bookingsCount,
+            toursBookedCount: stats.toursBookedCount,
+            totalSpent: stats.totalSpent,
+            lastBookingAt: stats.lastBookingAt ?? null,
+        };
+    });
+
     return {
-        data,
-        meta
+        data: enrichedData,
+        meta: {
+            ...meta,
+            totalPages: meta.totalPage,
+        }
     }
 };
 const getSingleUser = async (id: string) => {
@@ -180,6 +271,28 @@ const getWishlist = async (userId: string) => {
     };
 };
 
+const deleteUserService = async (userId: string, decodedToken: JwtPayload) => {
+    const user = await User.findById(userId);
+
+    if (!user) {
+        throw new AppError(httpStatus.NOT_FOUND, "User Not Found");
+    }
+
+    if (user.role === Role.SUPER_ADMIN && decodedToken.role !== Role.SUPER_ADMIN) {
+        throw new AppError(httpStatus.FORBIDDEN, "You are not authorized");
+    }
+
+    const deletedUser = await User.findByIdAndUpdate(
+        userId,
+        { isDeleted: true },
+        { new: true, runValidators: true }
+    ).select("-password");
+
+    return {
+        data: deletedUser,
+    };
+};
+
 export const UserServices = {
     createUser,
     getAllUsers,
@@ -187,5 +300,6 @@ export const UserServices = {
     updateUserService,
     getMe,
     toggleWishlist,
-    getWishlist
+    getWishlist,
+    deleteUserService,
 }

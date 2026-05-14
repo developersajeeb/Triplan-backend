@@ -76,6 +76,42 @@ const normalizePaymentStatus = (value?: string) => {
   return normalized;
 };
 
+const normalizePaymentStatusFilter = (value?: string) => {
+  const normalized = normalizeText(value);
+
+  if (normalized === "complete" || normalized === "completed" || normalized === "paid") {
+    return "paid";
+  }
+
+  if (normalized === "pending" || normalized === "unpaid") {
+    return "unpaid";
+  }
+
+  if (normalized === "cancel" || normalized === "cancelled") {
+    return "cancelled";
+  }
+
+  return normalized;
+};
+
+const formatPaymentStatusForApi = (value?: string) => {
+  const normalized = normalizePaymentStatus(value);
+
+  if (normalized === "paid") {
+    return "complete";
+  }
+
+  if (normalized === "unpaid") {
+    return "pending";
+  }
+
+  if (normalized === "cancelled") {
+    return "cancel";
+  }
+
+  return normalized;
+};
+
 const getAdminBookingStatusLabel = (booking: TPopulatedBooking) => {
   const baseStatus = normalizeText(String(booking.status ?? ""));
 
@@ -241,13 +277,18 @@ const buildBookingResponse = (booking: TPopulatedBooking) => {
             payment: booking.payment
               ? {
                   ...booking.payment,
-                  status: booking.payment.status,
+                  status: formatPaymentStatusForApi(booking.payment.status),
                 }
               : undefined,
           },
         ]
       : [],
-    payment: booking.payment,
+    payment: booking.payment
+      ? {
+          ...booking.payment,
+          status: formatPaymentStatusForApi(booking.payment.status),
+        }
+      : booking.payment,
   };
 };
 
@@ -629,7 +670,7 @@ const getAllBookings = async (query: Record<string, string> = {}) => {
   const limit = Math.max(1, Number(query.limit) || 10);
   const search = normalizeText(query.search);
   const statusFilter = normalizeText(query.status);
-  const paymentStatusFilter = normalizeText(query.paymentStatus);
+  const paymentStatusFilter = normalizePaymentStatusFilter(query.paymentStatus);
   const sort = normalizeText(query.sort) || "newest";
 
   const bookings = await Booking.find()
@@ -701,7 +742,7 @@ const getAllBookings = async (query: Record<string, string> = {}) => {
           return true;
         }
 
-        const normalizedFilter = normalizePaymentStatus(paymentStatusFilter);
+        const normalizedFilter = normalizePaymentStatusFilter(paymentStatusFilter);
 
         return paymentStatus === normalizedFilter;
       })();

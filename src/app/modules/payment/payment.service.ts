@@ -76,6 +76,42 @@ const formatDateKey = (value?: string | Date) => {
     return toLocalDateKey(dateValue);
 };
 
+const normalizePaymentStatusFilter = (value?: string) => {
+    const normalized = (value ?? "").trim().toLowerCase();
+
+    if (normalized === "complete" || normalized === "completed" || normalized === "paid") {
+        return "paid";
+    }
+
+    if (normalized === "pending" || normalized === "unpaid") {
+        return "unpaid";
+    }
+
+    if (normalized === "cancel" || normalized === "cancelled") {
+        return "cancelled";
+    }
+
+    return normalized;
+};
+
+const formatPaymentStatusForApi = (value?: string) => {
+    const normalized = (value ?? "").trim().toLowerCase();
+
+    if (normalized === "paid") {
+        return "complete";
+    }
+
+    if (normalized === "unpaid") {
+        return "pending";
+    }
+
+    if (normalized === "cancelled") {
+        return "cancel";
+    }
+
+    return normalized;
+};
+
 const getMatchingTourBatch = (booking: any) => {
     const batches = booking?.tour?.batches ?? [];
 
@@ -353,7 +389,7 @@ const getMyPayments = async (userId: string, query: Record<string, any>) => {
     const bookingMatch: Record<string, any> = { user: userId };
 
     const search = typeof query.search === "string" ? query.search.trim() : "";
-    const status = typeof query.status === "string" ? query.status.trim() : "";
+    const status = typeof query.status === "string" ? normalizePaymentStatusFilter(query.status) : "";
     const startDate = typeof query.startDate === "string" ? query.startDate.trim() : "";
     const endDate = typeof query.endDate === "string" ? query.endDate.trim() : "";
 
@@ -393,6 +429,7 @@ const getMyPayments = async (userId: string, query: Record<string, any>) => {
 
         return {
             ...paymentObj,
+            status: formatPaymentStatusForApi(paymentObj.status),
             booking: {
                 ...booking,
                 batchNo: matchedBatch?.batchNo ?? null,
